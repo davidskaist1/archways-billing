@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Billing</h1>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="claims">Claims</button>
+                <button class="tab-btn" data-tab="payments">Payments</button>
+                <button class="tab-btn" data-tab="unmatched">Action Required</button>
+                <button class="tab-btn" data-tab="import">Import</button>
+            </div>
+
+            <!-- Claims Tab -->
+            <div class="tab-content active" id="tab-claims">
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label class="form-label">Date Range</label>
+                        <div class="flex gap-1">
+                            <input class="form-input" type="date" id="claims-date-from">
+                            <input class="form-input" type="date" id="claims-date-to">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Payer</label>
+                        <select class="form-select" id="claims-payer"><option value="">All Payers</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="claims-status">
+                            <option value="">All</option>
+                            <option value="submitted">Submitted</option>
+                            <option value="paid">Paid</option>
+                            <option value="partial">Partial</option>
+                            <option value="denied">Denied</option>
+                            <option value="appealed">Appealed</option>
+                            <option value="void">Void</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Client</label>
+                        <input class="form-input" type="text" id="claims-client-search" placeholder="Search client...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">CPT</label>
+                        <input class="form-input" type="text" id="claims-cpt" placeholder="e.g. 97153" style="width:100px;">
+                    </div>
+                    <div class="form-group" style="align-self:end;">
+                        <button class="btn btn-secondary" id="claims-filter-btn">Filter</button>
+                    </div>
+                </div>
+                <div id="claims-table"></div>
+            </div>
+
+            <!-- Payments Tab -->
+            <div class="tab-content" id="tab-payments">
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label class="form-label">Date Range</label>
+                        <div class="flex gap-1">
+                            <input class="form-input" type="date" id="payments-date-from">
+                            <input class="form-input" type="date" id="payments-date-to">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Payer</label>
+                        <select class="form-select" id="payments-payer"><option value="">All Payers</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Check #</label>
+                        <input class="form-input" type="text" id="payments-check" placeholder="Search...">
+                    </div>
+                    <div class="form-group" style="align-self:end;">
+                        <button class="btn btn-secondary" id="payments-filter-btn">Filter</button>
+                    </div>
+                    <div class="form-group" style="align-self:end;">
+                        <button class="btn btn-primary" id="auto-match-btn">Auto-Match Payments</button>
+                    </div>
+                </div>
+                <div id="payments-table"></div>
+            </div>
+
+            <!-- Action Required Tab -->
+            <div class="tab-content" id="tab-unmatched">
+                <div class="grid-2 gap-lg">
+                    <div class="card">
+                        <div class="card-header"><h3>Unmatched Payments</h3></div>
+                        <div id="unmatched-payments-table"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>Claims Needing Attention</h3></div>
+                        <div id="problem-claims-table"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Tab -->
+            <div class="tab-content" id="tab-import">
+                <div class="grid-2 gap-lg">
+                    <div class="card">
+                        <div class="card-header"><h3>Import Claims</h3></div>
+                        <div id="import-claims-zone"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>Import Payments</h3></div>
+                        <div id="import-payments-zone"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script type="module" src="js/billing.js"></script>
+</body>
+</html>

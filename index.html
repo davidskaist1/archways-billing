@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archways ABA — Sign In</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="brand-icon">A</div>
+                <h1>Archways ABA</h1>
+                <p>Billing & Payroll</p>
+            </div>
+
+            <div class="login-error" id="login-error"></div>
+
+            <form class="login-form" id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="email">Email</label>
+                    <input class="form-input" type="email" id="email" name="email" required autocomplete="email" placeholder="you@archways.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <input class="form-input" type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+                </div>
+                <button class="btn btn-primary" type="submit" id="login-btn">Sign In</button>
+            </form>
+
+            <div class="login-forgot">
+                <a href="#" id="forgot-link">Forgot your password?</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module">
+        import { signIn, resetPassword, getSession } from './js/auth.js';
+
+        // If already logged in, redirect
+        import { supabase } from './js/supabase-client.js';
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            window.location.href = 'dashboard.html';
+        }
+
+        const form = document.getElementById('login-form');
+        const errorEl = document.getElementById('login-error');
+        const loginBtn = document.getElementById('login-btn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorEl.style.display = 'none';
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in...';
+
+            try {
+                const email = document.getElementById('email').value.trim();
+                const password = document.getElementById('password').value;
+                await signIn(email, password);
+                window.location.href = 'dashboard.html';
+            } catch (err) {
+                errorEl.textContent = err.message || 'Invalid email or password.';
+                errorEl.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        });
+
+        document.getElementById('forgot-link').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            if (!email) {
+                errorEl.textContent = 'Enter your email first, then click "Forgot your password?"';
+                errorEl.style.display = 'block';
+                return;
+            }
+            try {
+                await resetPassword(email);
+                errorEl.style.display = 'none';
+                const msg = document.createElement('div');
+                msg.style.cssText = 'background:#ecfdf5;color:#059669;padding:10px 14px;border-radius:8px;font-size:0.85rem;margin-bottom:16px;';
+                msg.textContent = 'Password reset link sent. Check your email.';
+                form.before(msg);
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

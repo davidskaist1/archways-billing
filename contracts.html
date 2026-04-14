@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contracts — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Insurance Contracts</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" id="add-payer-btn">+ Add Payer</button>
+                </div>
+            </div>
+
+            <div class="grid-2 gap-lg" style="grid-template-columns: 280px 1fr; align-items: start;">
+                <!-- Payer list -->
+                <div class="card" id="payer-list-card">
+                    <div class="card-header">
+                        <h3>Payers</h3>
+                    </div>
+                    <div id="payer-list" style="max-height:500px;overflow-y:auto;"></div>
+                </div>
+
+                <!-- Rates table -->
+                <div class="card" id="rates-card">
+                    <div class="card-header">
+                        <h3 id="rates-title">Select a payer</h3>
+                        <div class="page-actions" id="rates-actions" style="display:none;">
+                            <button class="btn btn-sm btn-secondary" id="edit-payer-btn">Edit Payer</button>
+                            <button class="btn btn-sm btn-primary" id="add-rate-btn">+ Add Rate</button>
+                        </div>
+                    </div>
+                    <div id="payer-details" class="mb-2" style="display:none;"></div>
+                    <div id="rates-table">
+                        <div class="empty-state">
+                            <p>Select a payer from the list to view contract rates.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/contracts.js"></script>
+</body>
+</html>

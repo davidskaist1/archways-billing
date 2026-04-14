@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar injected by nav.js -->
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Dashboard</h1>
+                <div class="page-actions">
+                    <span class="text-sm text-muted" id="current-date"></span>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid" id="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Outstanding Claims</div>
+                    <div class="kpi-value" id="kpi-outstanding">—</div>
+                    <div class="kpi-sub" id="kpi-outstanding-sub"></div>
+                </div>
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Payments This Month</div>
+                    <div class="kpi-value" id="kpi-payments">—</div>
+                    <div class="kpi-sub" id="kpi-payments-sub"></div>
+                </div>
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Denial Rate (90 days)</div>
+                    <div class="kpi-value" id="kpi-denials">—</div>
+                    <div class="kpi-sub" id="kpi-denials-sub"></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Payroll Hours (Current Period)</div>
+                    <div class="kpi-value" id="kpi-payroll">—</div>
+                    <div class="kpi-sub" id="kpi-payroll-sub"></div>
+                </div>
+            </div>
+
+            <!-- Two-column layout -->
+            <div class="grid-2 gap-lg">
+                <!-- Billing Snapshot -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Claims Aging</h3>
+                        <a href="billing.html" class="btn btn-ghost btn-sm">View All</a>
+                    </div>
+                    <canvas id="aging-chart" height="200"></canvas>
+                    <div id="aging-summary" class="mt-2 text-sm"></div>
+                </div>
+
+                <!-- Recent Payments -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recent Payments</h3>
+                        <a href="billing.html" class="btn btn-ghost btn-sm">View All</a>
+                    </div>
+                    <div id="recent-payments"></div>
+                </div>
+            </div>
+
+            <!-- Payroll Snapshot -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h3>Staff Hours This Period</h3>
+                    <a href="payroll.html" class="btn btn-ghost btn-sm">View All</a>
+                </div>
+                <canvas id="hours-chart" height="150"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>
