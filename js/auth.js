@@ -90,6 +90,7 @@ export {
     signOut,
     resetPassword,
     requireAuth,
+    getSession,
     getCurrentStaff,
     getCurrentUser,
     hasRole
