@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clearinghouse — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Clearinghouse Activity</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" id="sync-now-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;">
+                            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                        </svg>
+                        Sync Now
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status banner -->
+            <div id="status-banner" class="card mb-3" style="display:none;"></div>
+
+            <!-- KPI row -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Last Sync</div>
+                    <div class="kpi-value" id="kpi-last-sync">—</div>
+                    <div class="kpi-sub" id="kpi-last-sync-sub"></div>
+                </div>
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">ERAs This Month</div>
+                    <div class="kpi-value" id="kpi-eras-month">0</div>
+                    <div class="kpi-sub" id="kpi-eras-month-sub"></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Payments Received</div>
+                    <div class="kpi-value" id="kpi-total-payments">$0.00</div>
+                    <div class="kpi-sub" id="kpi-total-payments-sub"></div>
+                </div>
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Pending Acknowledgments</div>
+                    <div class="kpi-value" id="kpi-pending-acks">0</div>
+                    <div class="kpi-sub">Claims awaiting response</div>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="eras">ERA Files</button>
+                <button class="tab-btn" data-tab="acks">Claim Acknowledgments</button>
+                <button class="tab-btn" data-tab="sync-log">Sync History</button>
+                <button class="tab-btn" data-tab="test-upload">Test Upload</button>
+            </div>
+
+            <!-- ERA Files Tab -->
+            <div class="tab-content active" id="tab-eras">
+                <div id="era-table"></div>
+            </div>
+
+            <!-- Acknowledgments Tab -->
+            <div class="tab-content" id="tab-acks">
+                <div id="ack-table"></div>
+            </div>
+
+            <!-- Sync Log Tab -->
+            <div class="tab-content" id="tab-sync-log">
+                <div id="sync-log-table"></div>
+            </div>
+
+            <!-- Test Upload Tab -->
+            <div class="tab-content" id="tab-test-upload">
+                <div class="card">
+                    <div class="card-header"><h3>Test an EDI File</h3></div>
+                    <p class="text-sm text-muted mb-2">
+                        Paste the contents of an 835 (ERA) or 277CA (acknowledgment) file below.
+                        This will parse it and show you a preview without committing anything to the database.
+                        Useful for testing with sample files before the SFTP integration goes live.
+                    </p>
+                    <textarea class="form-textarea" id="test-content" rows="8" placeholder="ISA*00*          *00*          *ZZ*SENDER..." style="font-family:monospace;font-size:0.8rem;"></textarea>
+                    <div class="mt-2">
+                        <button class="btn btn-primary" id="test-parse-btn">Parse File</button>
+                    </div>
+                </div>
+                <div id="test-result" class="mt-3"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/clearinghouse.js"></script>
+</body>
+</html>

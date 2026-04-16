@@ -1,0 +1,9 @@
+{
+  "name": "archways-billing-functions",
+  "version": "1.0.0",
+  "description": "Netlify functions for Archways billing app",
+  "dependencies": {
+    "@netlify/functions": "^2.8.0",
+    "ssh2-sftp-client": "^10.0.3"
+  }
+}
