@@ -1,16 +1,16 @@
 import { supabase } from './supabase-client.js';
 
 let currentUser = null;
-let currentStaff = null;
+let currentAppUser = null;
 
 async function getSession() {
     const { data: { session } } = await supabase.auth.getSession();
     return session;
 }
 
-async function getStaffRecord(userId) {
+async function getAppUser(userId) {
     const { data, error } = await supabase
-        .from('staff')
+        .from('app_users')
         .select('*')
         .eq('auth_user_id', userId)
         .eq('is_active', true)
@@ -23,21 +23,24 @@ async function signIn(email, password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
 
-    const staff = await getStaffRecord(data.user.id);
-    if (!staff) {
+    const appUser = await getAppUser(data.user.id);
+    if (!appUser) {
         await supabase.auth.signOut();
-        throw new Error('No active staff record found for this account.');
+        throw new Error('No active user account found. Contact your administrator.');
     }
 
+    // Update last login
+    await supabase.from('app_users').update({ last_login_at: new Date().toISOString() }).eq('id', appUser.id);
+
     currentUser = data.user;
-    currentStaff = staff;
-    return { user: data.user, staff };
+    currentAppUser = appUser;
+    return { user: data.user, appUser };
 }
 
 async function signOut() {
     await supabase.auth.signOut();
     currentUser = null;
-    currentStaff = null;
+    currentAppUser = null;
     window.location.href = 'index.html';
 }
 
@@ -56,25 +59,26 @@ async function requireAuth(allowedRoles = null) {
         return null;
     }
 
-    const staff = await getStaffRecord(session.user.id);
-    if (!staff) {
+    const appUser = await getAppUser(session.user.id);
+    if (!appUser) {
         await supabase.auth.signOut();
         window.location.href = 'index.html';
         return null;
     }
 
-    if (allowedRoles && !allowedRoles.includes(staff.role)) {
+    if (allowedRoles && !allowedRoles.includes(appUser.role)) {
         window.location.href = 'dashboard.html';
         return null;
     }
 
     currentUser = session.user;
-    currentStaff = staff;
-    return { user: session.user, staff };
+    currentAppUser = appUser;
+    return { user: session.user, staff: appUser };
 }
 
+// Keep "getCurrentStaff" name for backwards compatibility with all page modules
 function getCurrentStaff() {
-    return currentStaff;
+    return currentAppUser;
 }
 
 function getCurrentUser() {
@@ -82,7 +86,7 @@ function getCurrentUser() {
 }
 
 function hasRole(...roles) {
-    return currentStaff && roles.includes(currentStaff.role);
+    return currentAppUser && roles.includes(currentAppUser.role);
 }
 
 export {

@@ -7,7 +7,7 @@ let table;
 let allStaff = [];
 
 async function init() {
-    const auth = await requireAuth(['admin']);
+    const auth = await requireAuth(['admin', 'payroll']);
     if (!auth) return;
     renderNav();
 
