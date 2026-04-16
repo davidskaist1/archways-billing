@@ -1,7 +1,8 @@
 {
-  "name": "archways-billing-functions",
+  "name": "archways-billing",
   "version": "1.0.0",
-  "description": "Netlify functions for Archways billing app",
+  "private": true,
+  "description": "Billing & payroll tracking for Archways ABA",
   "dependencies": {
     "@netlify/functions": "^2.8.0",
     "ssh2-sftp-client": "^10.0.3"
