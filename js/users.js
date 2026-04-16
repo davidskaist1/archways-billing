@@ -239,6 +239,16 @@ function openEditModal(user) {
                 <label class="form-label">Last Login</label>
                 <p class="text-sm">${user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never'}</p>
             </div>
+            <hr style="border:none;border-top:1px solid var(--color-border);margin:16px 0;">
+            <div class="form-group">
+                <label class="form-label">Reset Password</label>
+                <div class="flex gap-1">
+                    <input class="form-input" type="text" id="reset-password-input" placeholder="New temporary password">
+                    <button type="button" class="btn btn-secondary" id="gen-reset-pw" style="white-space:nowrap;">Generate</button>
+                </div>
+                <button type="button" class="btn btn-danger btn-sm mt-1" id="reset-password-btn">Reset Password</button>
+                <div id="reset-result" class="mt-1" style="display:none;"></div>
+            </div>
         </form>
     `;
 
@@ -252,6 +262,51 @@ function openEditModal(user) {
 
     document.getElementById('edit-role-select')?.addEventListener('change', (e) => {
         document.getElementById('edit-role-desc').textContent = roleDescription(e.target.value);
+    });
+
+    // Generate password for reset
+    document.getElementById('gen-reset-pw').addEventListener('click', () => {
+        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        let pwd = 'Arch';
+        for (let i = 0; i < 8; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+        pwd += '!';
+        document.getElementById('reset-password-input').value = pwd;
+    });
+
+    // Reset password
+    document.getElementById('reset-password-btn').addEventListener('click', async () => {
+        const newPw = document.getElementById('reset-password-input').value.trim();
+        if (!newPw || newPw.length < 8) {
+            showToast('Enter a password of at least 8 characters.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('reset-password-btn');
+        btn.disabled = true;
+        btn.textContent = 'Resetting...';
+
+        try {
+            const res = await fetch('/.netlify/functions/reset-user-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auth_user_id: user.auth_user_id, new_password: newPw })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || 'Failed to reset password');
+
+            const resultEl = document.getElementById('reset-result');
+            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<div style="background:var(--color-success-light);padding:8px 12px;border-radius:6px;">
+                <p class="text-sm"><strong>Password reset!</strong></p>
+                <p class="text-sm">New password: <code style="background:#fff;padding:2px 6px;border-radius:4px;font-weight:bold;">${newPw}</code></p>
+                <p class="text-xs text-muted mt-1">Copy this and send it to the user.</p>
+            </div>`;
+        } catch (err) {
+            showToast('Reset failed: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Reset Password';
     });
 
     document.getElementById('edit-cancel').addEventListener('click', () => closeModal('edit-user-modal'));
