@@ -17,6 +17,7 @@
 
             <div class="tabs">
                 <button class="tab-btn active" data-tab="claims">Claims</button>
+                <button class="tab-btn" data-tab="by-payer">By Payer (Call Mode)</button>
                 <button class="tab-btn" data-tab="payments">Payments</button>
                 <button class="tab-btn" data-tab="unmatched">Action Required</button>
                 <button class="tab-btn" data-tab="import">Import</button>
@@ -61,6 +62,14 @@
                     </div>
                 </div>
                 <div id="claims-table"></div>
+            </div>
+
+            <!-- By Payer Tab (Call Mode) -->
+            <div class="tab-content" id="tab-by-payer">
+                <p class="text-sm text-muted mb-2">
+                    Work claims one payer at a time. Pick a payer, call them once, work through all their open claims in sequence.
+                </p>
+                <div id="payer-list"></div>
             </div>
 
             <!-- Payments Tab -->

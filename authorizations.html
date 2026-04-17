@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorizations — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Authorizations</h1>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="refresh-btn">Refresh</button>
+                    <button class="btn btn-primary" id="add-auth-btn">+ Add Manual Auth</button>
+                </div>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Active Auths</div>
+                    <div class="kpi-value" id="kpi-active">—</div>
+                </div>
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Expiring ≤ 30 Days</div>
+                    <div class="kpi-value" id="kpi-expiring">—</div>
+                </div>
+                <div class="kpi-card kpi-danger">
+                    <div class="kpi-label">Expired</div>
+                    <div class="kpi-value" id="kpi-expired">—</div>
+                </div>
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Avg Utilization</div>
+                    <div class="kpi-value" id="kpi-utilization">—</div>
+                    <div class="kpi-sub">Active auths only</div>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="active">Active</button>
+                <button class="tab-btn" data-tab="expiring">Expiring Soon</button>
+                <button class="tab-btn" data-tab="expired">Expired</button>
+                <button class="tab-btn" data-tab="all">All</button>
+            </div>
+
+            <div class="filter-bar">
+                <div class="form-group">
+                    <label class="form-label">Search Client</label>
+                    <input class="form-input" type="text" id="filter-client" placeholder="Client name...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Payer</label>
+                    <select class="form-select" id="filter-payer"><option value="">All Payers</option></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Utilization</label>
+                    <select class="form-select" id="filter-util">
+                        <option value="">All</option>
+                        <option value="high">≥ 75% used</option>
+                        <option value="exhausted">≥ 90% used</option>
+                        <option value="low">&lt; 25% used</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="auth-list"></div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/authorizations.js"></script>
+</body>
+</html>

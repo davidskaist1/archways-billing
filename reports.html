@@ -15,15 +15,87 @@
                 <h1>Reports</h1>
             </div>
 
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="aging">Claims Aging</button>
+            <div class="tabs" style="flex-wrap:wrap;">
+                <button class="tab-btn active" data-tab="kpi">KPI Dashboard</button>
+                <button class="tab-btn" data-tab="aging">Claims Aging</button>
                 <button class="tab-btn" data-tab="revenue">Revenue by Payer</button>
+                <button class="tab-btn" data-tab="denial-analytics">Denial Analytics</button>
+                <button class="tab-btn" data-tab="cash-projection">Cash Projection</button>
+                <button class="tab-btn" data-tab="biller-productivity">Biller Productivity</button>
                 <button class="tab-btn" data-tab="productivity">Staff Productivity</button>
                 <button class="tab-btn" data-tab="payroll-summary">Payroll Summary</button>
             </div>
 
+            <!-- KPI Dashboard -->
+            <div class="tab-content active" id="tab-kpi">
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label class="form-label">Date Range</label>
+                        <div class="flex gap-1">
+                            <input class="form-input" type="date" id="kpi-from">
+                            <input class="form-input" type="date" id="kpi-to">
+                        </div>
+                    </div>
+                    <div class="form-group" style="align-self:end;">
+                        <button class="btn btn-secondary" id="kpi-run-btn">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Gross Collection Rate</div>
+                        <div class="kpi-value" id="kpi-gcr">—</div>
+                        <div class="kpi-sub">Payments ÷ Billed</div>
+                    </div>
+                    <div class="kpi-card kpi-success">
+                        <div class="kpi-label">Net Collection Rate</div>
+                        <div class="kpi-value" id="kpi-ncr">—</div>
+                        <div class="kpi-sub">Payments ÷ (Billed – Contractual)</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">First-Pass Resolution</div>
+                        <div class="kpi-value" id="kpi-fpr">—</div>
+                        <div class="kpi-sub">% paid without rework</div>
+                    </div>
+                    <div class="kpi-card kpi-warning">
+                        <div class="kpi-label">Denial Rate</div>
+                        <div class="kpi-value" id="kpi-denial-rate">—</div>
+                        <div class="kpi-sub">% of claims denied</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Avg Days in AR</div>
+                        <div class="kpi-value" id="kpi-ar-days">—</div>
+                        <div class="kpi-sub">Days to payment</div>
+                    </div>
+                    <div class="kpi-card kpi-danger">
+                        <div class="kpi-label">Write-Offs</div>
+                        <div class="kpi-value" id="kpi-writeoffs">—</div>
+                        <div class="kpi-sub">Total written off</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Total Billed</div>
+                        <div class="kpi-value" id="kpi-total-billed">—</div>
+                    </div>
+                    <div class="kpi-card kpi-success">
+                        <div class="kpi-label">Total Collected</div>
+                        <div class="kpi-value" id="kpi-total-paid">—</div>
+                    </div>
+                </div>
+
+                <div class="grid-2 gap-lg">
+                    <div class="card">
+                        <div class="card-header"><h3>Collections Trend</h3></div>
+                        <canvas id="kpi-collections-chart" height="200"></canvas>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>Denial Rate Trend</h3></div>
+                        <canvas id="kpi-denial-chart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <!-- Aging Report -->
-            <div class="tab-content active" id="tab-aging">
+            <div class="tab-content" id="tab-aging">
                 <div class="filter-bar">
                     <div class="form-group">
                         <label class="form-label">Payer</label>
@@ -59,6 +131,89 @@
                     <div class="card"><canvas id="revenue-chart" height="300"></canvas></div>
                     <div class="card" id="revenue-table-card"><div id="revenue-table"></div></div>
                 </div>
+            </div>
+
+            <!-- Denial Analytics -->
+            <div class="tab-content" id="tab-denial-analytics">
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label class="form-label">Date Range</label>
+                        <div class="flex gap-1">
+                            <input class="form-input" type="date" id="denial-from">
+                            <input class="form-input" type="date" id="denial-to">
+                        </div>
+                    </div>
+                    <div class="form-group" style="align-self:end;">
+                        <button class="btn btn-secondary" id="denial-run-btn">Generate</button>
+                        <button class="btn btn-ghost" id="denial-export-btn">Export CSV</button>
+                    </div>
+                </div>
+                <div class="grid-2 gap-lg mb-3">
+                    <div class="card">
+                        <div class="card-header"><h3>By Category</h3></div>
+                        <canvas id="denial-cat-chart" height="250"></canvas>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><h3>By Payer</h3></div>
+                        <canvas id="denial-payer-chart" height="250"></canvas>
+                    </div>
+                </div>
+                <div id="denial-analytics-table"></div>
+            </div>
+
+            <!-- Cash Projection -->
+            <div class="tab-content" id="tab-cash-projection">
+                <div class="card mb-3">
+                    <h3 class="mb-1">30/60/90 Day Cash Projection</h3>
+                    <p class="text-sm text-muted">Projected collections based on aging of outstanding claims and historical collection patterns per payer.</p>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card kpi-success">
+                        <div class="kpi-label">Expected Next 30 Days</div>
+                        <div class="kpi-value" id="cash-30">—</div>
+                        <div class="kpi-sub" id="cash-30-sub"></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Expected 31-60 Days</div>
+                        <div class="kpi-value" id="cash-60">—</div>
+                        <div class="kpi-sub" id="cash-60-sub"></div>
+                    </div>
+                    <div class="kpi-card kpi-warning">
+                        <div class="kpi-label">Expected 61-90 Days</div>
+                        <div class="kpi-value" id="cash-90">—</div>
+                        <div class="kpi-sub" id="cash-90-sub"></div>
+                    </div>
+                    <div class="kpi-card kpi-danger">
+                        <div class="kpi-label">At Risk (90+)</div>
+                        <div class="kpi-value" id="cash-risk">—</div>
+                        <div class="kpi-sub" id="cash-risk-sub"></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3>Projected Cash Flow by Payer</h3></div>
+                    <div id="cash-table"></div>
+                </div>
+            </div>
+
+            <!-- Biller Productivity -->
+            <div class="tab-content" id="tab-biller-productivity">
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label class="form-label">Date Range</label>
+                        <div class="flex gap-1">
+                            <input class="form-input" type="date" id="biller-from">
+                            <input class="form-input" type="date" id="biller-to">
+                        </div>
+                    </div>
+                    <div class="form-group" style="align-self:end;">
+                        <button class="btn btn-secondary" id="biller-run-btn">Generate</button>
+                        <button class="btn btn-ghost" id="biller-export-btn">Export CSV</button>
+                    </div>
+                </div>
+                <div class="card mb-3"><canvas id="biller-chart" height="250"></canvas></div>
+                <div id="biller-table"></div>
             </div>
 
             <!-- Staff Productivity -->

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Balances — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Patient Balances</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" id="add-balance-btn">+ Add Balance</button>
+                </div>
+            </div>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Outstanding</div>
+                    <div class="kpi-value" id="kpi-outstanding">—</div>
+                    <div class="kpi-sub" id="kpi-outstanding-count"></div>
+                </div>
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Over 30 Days</div>
+                    <div class="kpi-value" id="kpi-aged-30">—</div>
+                </div>
+                <div class="kpi-card kpi-danger">
+                    <div class="kpi-label">Over 90 Days</div>
+                    <div class="kpi-value" id="kpi-aged-90">—</div>
+                </div>
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Collected (This Month)</div>
+                    <div class="kpi-value" id="kpi-collected">—</div>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <div class="form-group">
+                    <label class="form-label">Client</label>
+                    <input class="form-input" type="text" id="filter-client" placeholder="Search client...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="filter-status">
+                        <option value="outstanding">Outstanding</option>
+                        <option value="partial">Partial</option>
+                        <option value="paid">Paid</option>
+                        <option value="write_off">Written Off</option>
+                        <option value="sent_to_collections">Collections</option>
+                        <option value="">All</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type</label>
+                    <select class="form-select" id="filter-type">
+                        <option value="">All Types</option>
+                        <option value="copay">Copay</option>
+                        <option value="deductible">Deductible</option>
+                        <option value="coinsurance">Coinsurance</option>
+                        <option value="non_covered">Non-Covered</option>
+                        <option value="after_write_off">After Write-Off</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="balances-table"></div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/balances.js"></script>
+</body>
+</html>

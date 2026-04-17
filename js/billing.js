@@ -54,6 +54,7 @@ function setupTabs() {
 
             if (btn.dataset.tab === 'payments') loadPayments();
             if (btn.dataset.tab === 'unmatched') loadUnmatched();
+            if (btn.dataset.tab === 'by-payer') loadByPayer();
         });
     });
 }
@@ -460,6 +461,176 @@ function setupImport() {
 
     createImportUI('import-payments-zone', 'payments', () => {
         showToast('Payments imported. Run Auto-Match on the Payments tab.', 'success');
+    });
+}
+
+// ============================================
+// BY PAYER (Call Mode)
+// ============================================
+
+let selectedPayer = null;
+let payerClaims = [];
+
+async function loadByPayer() {
+    const { data: openClaims } = await supabase
+        .from('claims')
+        .select(`
+            id, service_date, cpt_code, units, billed_amount, paid_amount, expected_amount, status,
+            client_id, payer_id, cr_claim_id,
+            clients(first_name, last_name),
+            insurance_payers(id, name)
+        `)
+        .in('status', ['submitted', 'partial', 'appealed', 'denied'])
+        .order('service_date', { ascending: false });
+
+    // Group by payer
+    const byPayer = {};
+    for (const c of (openClaims || [])) {
+        const pid = c.payer_id;
+        if (!pid) continue;
+        if (!byPayer[pid]) {
+            byPayer[pid] = {
+                payer_id: pid,
+                payer_name: c.insurance_payers?.name || '(Unknown)',
+                claims: [],
+                total_outstanding: 0
+            };
+        }
+        const outstanding = parseFloat(c.billed_amount) - parseFloat(c.paid_amount || 0);
+        byPayer[pid].claims.push({ ...c, outstanding });
+        byPayer[pid].total_outstanding += outstanding;
+    }
+
+    const payerList = Object.values(byPayer).sort((a, b) => b.total_outstanding - a.total_outstanding);
+
+    // Render: left column payer list, right column claims for selected payer
+    const listEl = document.getElementById('payer-list');
+
+    if (payerList.length === 0) {
+        listEl.innerHTML = `<div class="empty-state"><h3>No open claims</h3><p>Nothing to work right now.</p></div>`;
+        return;
+    }
+
+    let html = '<div class="grid-2 gap-lg" style="grid-template-columns: 280px 1fr; align-items: start;">';
+
+    // Payer list
+    html += '<div class="card" style="padding:0;"><div style="padding:16px 16px 8px;"><h4>Payers (by $ outstanding)</h4></div><div id="payer-list-items" style="max-height:600px;overflow-y:auto;">';
+    for (const p of payerList) {
+        const isActive = selectedPayer?.payer_id === p.payer_id;
+        html += `<a href="#" class="nav-link ${isActive ? 'active' : ''}" data-payer-id="${p.payer_id}" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-radius:0;border-bottom:1px solid var(--color-border);">
+            <div>
+                <div style="font-weight:600;">${p.payer_name}</div>
+                <div class="text-xs text-muted">${p.claims.length} open claim${p.claims.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div class="text-right">
+                <div style="font-weight:700;">${formatCurrency(p.total_outstanding)}</div>
+            </div>
+        </a>`;
+    }
+    html += '</div></div>';
+
+    // Selected payer's claims
+    html += '<div id="payer-claims-panel"></div>';
+    html += '</div>';
+
+    listEl.innerHTML = html;
+
+    listEl.querySelectorAll('[data-payer-id]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            e.preventDefault();
+            const pid = el.dataset.payerId;
+            selectedPayer = payerList.find(p => p.payer_id === pid);
+            payerClaims = selectedPayer.claims;
+            loadByPayer(); // re-render
+            renderPayerClaims();
+        });
+    });
+
+    // Auto-render first payer if something selected
+    if (selectedPayer) {
+        renderPayerClaims();
+    }
+}
+
+function renderPayerClaims() {
+    const panel = document.getElementById('payer-claims-panel');
+    if (!panel || !selectedPayer) return;
+
+    let html = `<div class="card">
+        <div class="flex-between mb-2">
+            <h3>${selectedPayer.payer_name}</h3>
+            <div class="text-right">
+                <div class="text-xs text-muted">Total at risk</div>
+                <div style="font-size:1.25rem;font-weight:700;">${formatCurrency(selectedPayer.total_outstanding)}</div>
+            </div>
+        </div>
+
+        <div class="card mb-2" style="background:var(--color-info-light);">
+            <p class="text-sm"><strong>💡 Call tip:</strong> Tell the rep you're calling about multiple claims. Work through this list in one call — more efficient than calling for each.</p>
+        </div>
+
+        <div id="payer-claims-list">`;
+
+    for (const c of payerClaims) {
+        const client = c.clients ? `${c.clients.last_name}, ${c.clients.first_name}` : '(Unknown)';
+        const age = Math.floor((new Date() - new Date(c.service_date)) / (1000 * 60 * 60 * 24));
+        html += `<div class="queue-item" data-claim-id="${c.id}">
+            <div class="queue-item-header">
+                <div>
+                    <strong>${client}</strong>
+                    <div class="queue-item-meta">
+                        <span>${formatDate(c.service_date)}</span> ·
+                        <span class="font-mono">${c.cpt_code}</span> ·
+                        <span>${c.units} units</span> ·
+                        <span>Age: ${age}d</span> ·
+                        <span>${statusBadge(c.status)}</span>
+                    </div>
+                    ${c.cr_claim_id ? `<div class="text-xs font-mono text-muted">Claim #${c.cr_claim_id}</div>` : ''}
+                </div>
+                <div class="text-right">
+                    <div style="font-weight:700;">${formatCurrency(c.outstanding)}</div>
+                    <div class="text-xs text-muted">of ${formatCurrency(c.billed_amount)} billed</div>
+                </div>
+            </div>
+            <div class="queue-item-actions">
+                <button class="btn btn-sm btn-secondary bp-call" data-id="${c.id}">📞 Log Call</button>
+                <button class="btn btn-sm btn-secondary bp-note" data-id="${c.id}">📝 Note</button>
+                <button class="btn btn-sm btn-secondary bp-fu" data-id="${c.id}">📅 Follow-up</button>
+                <button class="btn btn-sm btn-primary bp-open" data-id="${c.id}">Open</button>
+            </div>
+        </div>`;
+    }
+
+    html += '</div></div>';
+    panel.innerHTML = html;
+
+    // Bind actions
+    panel.querySelectorAll('.bp-call').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const c = payerClaims.find(x => x.id === btn.dataset.id);
+            if (c) openCallModal(c, loadByPayer);
+        });
+    });
+    panel.querySelectorAll('.bp-note').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const c = payerClaims.find(x => x.id === btn.dataset.id);
+            if (c) openNoteModal(c, loadByPayer);
+        });
+    });
+    panel.querySelectorAll('.bp-fu').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const c = payerClaims.find(x => x.id === btn.dataset.id);
+            if (c) openFollowUpModal(c, loadByPayer);
+        });
+    });
+    panel.querySelectorAll('.bp-open').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openClaimDetailModal(btn.dataset.id, loadByPayer);
+        });
     });
 }
 
