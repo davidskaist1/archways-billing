@@ -3,6 +3,8 @@ import { renderNav } from './nav.js';
 import { supabase } from './supabase-client.js';
 import { DataTable, showToast, createModal, openModal, closeModal, formatCurrency, formatDate, statusBadge, confirmDialog } from './ui.js';
 import { createImportUI } from './import.js';
+import { openClaimDetailModal } from './claim-detail.js';
+import { openCallModal, openNoteModal, openFollowUpModal } from './claim-workflow.js';
 
 let claimsTable, paymentsTable, unmatchedPaymentsTable, problemClaimsTable;
 let payers = [];
@@ -81,7 +83,14 @@ function setupClaimsTable() {
             { key: 'days_old', label: 'Age', type: 'number', align: 'text-center', render: v => {
                 const cls = v > 90 ? 'text-danger font-bold' : v > 60 ? 'text-warning' : '';
                 return `<span class="${cls}">${v}d</span>`;
-            }}
+            }},
+            { key: 'actions', label: '', render: (_, r) => `
+                <div style="display:flex;gap:4px;">
+                    <button class="btn btn-ghost btn-sm quick-call" data-id="${r.id}" title="Log call">📞</button>
+                    <button class="btn btn-ghost btn-sm quick-note" data-id="${r.id}" title="Add note">📝</button>
+                    <button class="btn btn-ghost btn-sm quick-fu" data-id="${r.id}" title="Follow-up">📅</button>
+                </div>
+            `}
         ],
         defaultSort: 'service_date',
         defaultSortDir: 'desc',
@@ -131,88 +140,35 @@ async function loadClaims() {
     }
 
     claimsTable.setData(claims);
+
+    // Wire up quick action buttons (after table renders)
+    setTimeout(() => {
+        document.querySelectorAll('.quick-call').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const c = claims.find(cl => cl.id === btn.dataset.id);
+                if (c) openCallModal(c, loadClaims);
+            });
+        });
+        document.querySelectorAll('.quick-note').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const c = claims.find(cl => cl.id === btn.dataset.id);
+                if (c) openNoteModal(c, loadClaims);
+            });
+        });
+        document.querySelectorAll('.quick-fu').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const c = claims.find(cl => cl.id === btn.dataset.id);
+                if (c) openFollowUpModal(c, loadClaims);
+            });
+        });
+    }, 50);
 }
 
 function openClaimDetail(claim) {
-    const bodyHTML = `
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">Client</label>
-                <p>${claim.client_name}</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Payer</label>
-                <p>${claim.payer_name}</p>
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">Service Date</label>
-                <p>${formatDate(claim.service_date)}</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label">CPT Code</label>
-                <p class="font-mono">${claim.cpt_code}${claim.modifier ? ' - ' + claim.modifier : ''}</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Units</label>
-                <p>${claim.units}</p>
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label class="form-label">Billed</label>
-                <p class="font-bold">${formatCurrency(claim.billed_amount)}</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Expected</label>
-                <p>${claim.expected_amount ? formatCurrency(claim.expected_amount) : '—'}</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Paid</label>
-                <p class="font-bold ${parseFloat(claim.paid_amount) > 0 ? 'text-success' : ''}">${formatCurrency(claim.paid_amount)}</p>
-            </div>
-        </div>
-        <hr style="border:none;border-top:1px solid var(--color-border);margin:16px 0;">
-        <div class="form-group">
-            <label class="form-label">Status</label>
-            <select class="form-select" id="claim-status-edit">
-                ${['submitted','paid','partial','denied','appealed','void'].map(s =>
-                    `<option value="${s}" ${claim.status === s ? 'selected' : ''}>${s}</option>`
-                ).join('')}
-            </select>
-        </div>
-        <div class="form-group">
-            <label class="form-label">Denial Reason</label>
-            <input class="form-input" id="claim-denial-reason" value="${claim.denial_reason || ''}">
-        </div>
-        <div class="form-group">
-            <label class="form-label">Notes</label>
-            <textarea class="form-textarea" id="claim-notes" rows="3">${claim.notes || ''}</textarea>
-        </div>
-    `;
-
-    const footerHTML = `
-        <button class="btn btn-secondary" id="claim-cancel">Close</button>
-        <button class="btn btn-primary" id="claim-save">Save Changes</button>
-    `;
-
-    createModal('claim-detail-modal', 'Claim Detail', bodyHTML, footerHTML);
-    openModal('claim-detail-modal');
-
-    document.getElementById('claim-cancel').addEventListener('click', () => closeModal('claim-detail-modal'));
-    document.getElementById('claim-save').addEventListener('click', async () => {
-        const { error } = await supabase.from('claims').update({
-            status: document.getElementById('claim-status-edit').value,
-            denial_reason: document.getElementById('claim-denial-reason').value.trim() || null,
-            notes: document.getElementById('claim-notes').value.trim() || null
-        }).eq('id', claim.id);
-
-        if (error) { showToast('Failed to update: ' + error.message, 'error'); return; }
-        showToast('Claim updated.', 'success');
-        closeModal('claim-detail-modal');
-        loadClaims();
-    });
+    openClaimDetailModal(claim.id, loadClaims);
 }
 
 // ============================================

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Denials — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Denials & Appeals</h1>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="denials">Denials</button>
+                <button class="tab-btn" data-tab="appeals">Appeals</button>
+            </div>
+
+            <!-- Denials Tab -->
+            <div class="tab-content active" id="tab-denials">
+                <div class="kpi-grid">
+                    <div class="kpi-card kpi-danger">
+                        <div class="kpi-label">Open Denials</div>
+                        <div class="kpi-value" id="kpi-open">—</div>
+                        <div class="kpi-sub" id="kpi-open-sub"></div>
+                    </div>
+                    <div class="kpi-card kpi-warning">
+                        <div class="kpi-label">Approaching Appeal Deadline</div>
+                        <div class="kpi-value" id="kpi-deadline">—</div>
+                        <div class="kpi-sub">Within 14 days</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Total $ Denied</div>
+                        <div class="kpi-value" id="kpi-dollars">—</div>
+                        <div class="kpi-sub">Open denials only</div>
+                    </div>
+                    <div class="kpi-card kpi-success">
+                        <div class="kpi-label">Resolution Rate</div>
+                        <div class="kpi-value" id="kpi-resolution">—</div>
+                        <div class="kpi-sub">Last 90 days</div>
+                    </div>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="filter-status">
+                            <option value="">All Open</option>
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="appealed">Appealed</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="written_off">Written Off</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select class="form-select" id="filter-category">
+                            <option value="">All</option>
+                            <option value="prior_auth">Prior Authorization</option>
+                            <option value="medical_necessity">Medical Necessity</option>
+                            <option value="timely_filing">Timely Filing</option>
+                            <option value="coding">Coding Error</option>
+                            <option value="patient_info">Patient Info</option>
+                            <option value="duplicate">Duplicate</option>
+                            <option value="contractual">Contractual</option>
+                            <option value="non_covered">Non-Covered</option>
+                            <option value="eligibility">Eligibility</option>
+                            <option value="coordination">Coordination of Benefits</option>
+                            <option value="bundling">Bundling</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Action Plan</label>
+                        <select class="form-select" id="filter-action">
+                            <option value="">All</option>
+                            <option value="appeal">Appeal</option>
+                            <option value="correct_resubmit">Correct & Resubmit</option>
+                            <option value="write_off">Write Off</option>
+                            <option value="patient_responsibility">Transfer to Patient</option>
+                            <option value="pending_review">Pending Review</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Payer</label>
+                        <select class="form-select" id="filter-payer"><option value="">All Payers</option></select>
+                    </div>
+                </div>
+
+                <div id="denials-table"></div>
+            </div>
+
+            <!-- Appeals Tab -->
+            <div class="tab-content" id="tab-appeals">
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Draft</div>
+                        <div class="kpi-value" id="appeal-draft">—</div>
+                    </div>
+                    <div class="kpi-card kpi-warning">
+                        <div class="kpi-label">Submitted</div>
+                        <div class="kpi-value" id="appeal-submitted">—</div>
+                    </div>
+                    <div class="kpi-card kpi-success">
+                        <div class="kpi-label">Approved</div>
+                        <div class="kpi-value" id="appeal-approved">—</div>
+                    </div>
+                    <div class="kpi-card kpi-danger">
+                        <div class="kpi-label">Denied</div>
+                        <div class="kpi-value" id="appeal-denied">—</div>
+                    </div>
+                </div>
+
+                <div class="kanban-board" id="appeals-kanban"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/denials.js"></script>
+</body>
+</html>

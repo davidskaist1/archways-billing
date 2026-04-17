@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appeal Templates — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Appeal Letter Templates</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" id="add-template-btn">+ New Template</button>
+                </div>
+            </div>
+
+            <p class="text-sm text-muted mb-3">
+                Create reusable letter templates with variables that get auto-filled when building an appeal.
+                Available variables: <code>{{patient_name}}</code>, <code>{{member_id}}</code>, <code>{{claim_number}}</code>,
+                <code>{{service_date}}</code>, <code>{{cpt_code}}</code>, <code>{{billed_amount}}</code>,
+                <code>{{denial_code}}</code>, <code>{{denial_description}}</code>, <code>{{payer_name}}</code>,
+                <code>{{authorization_number}}</code>, <code>{{current_date}}</code>
+            </p>
+
+            <div id="templates-list"></div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/templates.js"></script>
+</body>
+</html>

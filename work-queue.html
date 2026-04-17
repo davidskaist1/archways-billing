@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Queue — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 id="greeting">My Work Queue</h1>
+                    <p class="text-sm text-muted" id="period-label"></p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="refresh-btn">Refresh</button>
+                </div>
+            </div>
+
+            <div class="queue-tabs" id="queue-tabs">
+                <div class="queue-tab active" data-queue="today">
+                    <span>Follow-ups Today</span>
+                    <span class="queue-count" id="count-today">0</span>
+                </div>
+                <div class="queue-tab" data-queue="overdue">
+                    <span>Overdue</span>
+                    <span class="queue-count" id="count-overdue">0</span>
+                </div>
+                <div class="queue-tab" data-queue="upcoming">
+                    <span>This Week</span>
+                    <span class="queue-count" id="count-upcoming">0</span>
+                </div>
+                <div class="queue-tab" data-queue="denials">
+                    <span>Open Denials</span>
+                    <span class="queue-count" id="count-denials">0</span>
+                </div>
+                <div class="queue-tab" data-queue="stale">
+                    <span>Stale Claims (45+ days)</span>
+                    <span class="queue-count" id="count-stale">0</span>
+                </div>
+                <div class="queue-tab" data-queue="underpaid">
+                    <span>Underpaid</span>
+                    <span class="queue-count" id="count-underpaid">0</span>
+                </div>
+            </div>
+
+            <div class="filter-bar" id="queue-filter-bar">
+                <div class="form-group">
+                    <label class="form-label">Filter by Payer</label>
+                    <select class="form-select" id="filter-payer"><option value="">All Payers</option></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sort</label>
+                    <select class="form-select" id="sort-by">
+                        <option value="due_date">Due Date</option>
+                        <option value="amount_desc">Amount (High to Low)</option>
+                        <option value="age">Age (Oldest First)</option>
+                        <option value="priority">Priority</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="queue-list"></div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/work-queue.js"></script>
+</body>
+</html>

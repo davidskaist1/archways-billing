@@ -4,15 +4,18 @@ const NAV_ITEMS = [
     {
         section: 'Overview',
         items: [
-            { label: 'Dashboard', href: 'dashboard.html', icon: 'home', roles: null }
+            { label: 'Dashboard', href: 'dashboard.html', icon: 'home', roles: null },
+            { label: 'My Work Queue', href: 'work-queue.html', icon: 'inbox', roles: ['admin', 'billing'] }
         ]
     },
     {
         section: 'Billing',
         items: [
             { label: 'Billing', href: 'billing.html', icon: 'dollar', roles: ['admin', 'billing'] },
+            { label: 'Denials', href: 'denials.html', icon: 'alert', roles: ['admin', 'billing'] },
             { label: 'Clearinghouse', href: 'clearinghouse.html', icon: 'refresh', roles: ['admin', 'billing'] },
-            { label: 'Contracts', href: 'contracts.html', icon: 'file-text', roles: ['admin', 'billing'] }
+            { label: 'Contracts', href: 'contracts.html', icon: 'file-text', roles: ['admin', 'billing'] },
+            { label: 'Authorizations', href: 'authorizations.html', icon: 'key', roles: ['admin', 'billing'] }
         ]
     },
     {
@@ -26,7 +29,9 @@ const NAV_ITEMS = [
         section: 'Management',
         items: [
             { label: 'Clients', href: 'clients.html', icon: 'user', roles: null },
+            { label: 'Patient Balances', href: 'balances.html', icon: 'credit-card', roles: ['admin', 'billing'] },
             { label: 'Reports', href: 'reports.html', icon: 'bar-chart', roles: null },
+            { label: 'Appeal Templates', href: 'templates.html', icon: 'mail', roles: ['admin', 'billing'] },
             { label: 'Users', href: 'users.html', icon: 'shield', roles: ['admin'] }
         ]
     }
@@ -42,6 +47,12 @@ const ICONS = {
     'bar-chart': '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
     'refresh': '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
     'shield': '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    'inbox': '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+    'alert': '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+    'key': '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+    'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>',
+    'mail': '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+    'search': '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
     'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
     menu: '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
     x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'
@@ -66,6 +77,12 @@ function renderNav() {
         <div class="sidebar-brand">
             <div class="brand-icon">A</div>
             <h2>Archways</h2>
+        </div>
+        <div style="padding: 8px 12px;">
+            <div class="global-search">
+                <input type="text" id="global-search-input" placeholder="Search claims, clients, checks..." autocomplete="off">
+                <div class="search-results hidden" id="search-results"></div>
+            </div>
         </div>
         <nav class="sidebar-nav">
     `;
@@ -124,6 +141,127 @@ function renderNav() {
                 sidebar.classList.remove('open');
             }
         });
+    });
+
+    // Wire up global search
+    setupGlobalSearch();
+}
+
+async function setupGlobalSearch() {
+    const input = document.getElementById('global-search-input');
+    const results = document.getElementById('search-results');
+    if (!input) return;
+
+    // Dynamic import to avoid circular dependencies
+    const { supabase } = await import('./supabase-client.js');
+
+    let debounceTimer;
+
+    const runSearch = async (q) => {
+        if (!q || q.length < 2) {
+            results.classList.add('hidden');
+            return;
+        }
+
+        results.innerHTML = '<div class="search-result-item"><span class="spinner"></span> Searching...</div>';
+        results.classList.remove('hidden');
+
+        try {
+            // Search clients
+            const { data: clients } = await supabase
+                .from('clients')
+                .select('id, first_name, last_name, insurance_member_id, date_of_birth')
+                .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,insurance_member_id.ilike.%${q}%`)
+                .limit(5);
+
+            // Search claims by claim number
+            const { data: claimsByNum } = await supabase
+                .from('claims')
+                .select('id, cr_claim_id, service_date, cpt_code, billed_amount, status, clients(first_name, last_name)')
+                .ilike('cr_claim_id', `%${q}%`)
+                .limit(5);
+
+            // Search payments by check number
+            const { data: payments } = await supabase
+                .from('payments')
+                .select('id, check_number, check_date, payment_amount, insurance_payers(name)')
+                .ilike('check_number', `%${q}%`)
+                .limit(5);
+
+            let html = '';
+
+            if (clients && clients.length > 0) {
+                html += '<div class="search-result-group"><div class="search-result-label">Clients</div>';
+                for (const c of clients) {
+                    html += `<div class="search-result-item" data-type="client" data-id="${c.id}">
+                        <strong>${c.first_name} ${c.last_name}</strong>
+                        <div class="text-muted">${c.insurance_member_id || 'No member ID'} ${c.date_of_birth ? '· DOB ' + c.date_of_birth : ''}</div>
+                    </div>`;
+                }
+                html += '</div>';
+            }
+
+            if (claimsByNum && claimsByNum.length > 0) {
+                html += '<div class="search-result-group"><div class="search-result-label">Claims</div>';
+                for (const c of claimsByNum) {
+                    const client = c.clients ? `${c.clients.last_name}, ${c.clients.first_name}` : '';
+                    html += `<div class="search-result-item" data-type="claim" data-id="${c.id}">
+                        <strong>#${c.cr_claim_id}</strong> — ${client}
+                        <div class="text-muted">${c.service_date} · ${c.cpt_code} · $${c.billed_amount} · ${c.status}</div>
+                    </div>`;
+                }
+                html += '</div>';
+            }
+
+            if (payments && payments.length > 0) {
+                html += '<div class="search-result-group"><div class="search-result-label">Payments</div>';
+                for (const p of payments) {
+                    html += `<div class="search-result-item" data-type="payment" data-id="${p.id}">
+                        <strong>Check #${p.check_number}</strong>
+                        <div class="text-muted">${p.check_date || ''} · $${p.payment_amount} · ${p.insurance_payers?.name || ''}</div>
+                    </div>`;
+                }
+                html += '</div>';
+            }
+
+            if (!html) {
+                html = '<div class="search-result-item text-muted">No results</div>';
+            }
+
+            results.innerHTML = html;
+
+            // Bind click handlers
+            results.querySelectorAll('[data-type]').forEach(el => {
+                el.addEventListener('click', async () => {
+                    const type = el.dataset.type;
+                    const id = el.dataset.id;
+                    input.value = '';
+                    results.classList.add('hidden');
+                    if (type === 'claim') {
+                        const { openClaimDetailModal } = await import('./claim-detail.js');
+                        openClaimDetailModal(id);
+                    } else if (type === 'client') {
+                        window.location.href = 'clients.html?id=' + id;
+                    } else if (type === 'payment') {
+                        window.location.href = 'billing.html?tab=payments&id=' + id;
+                    }
+                });
+            });
+        } catch (err) {
+            results.innerHTML = '<div class="search-result-item text-danger">Search failed</div>';
+        }
+    };
+
+    input.addEventListener('input', (e) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => runSearch(e.target.value.trim()), 250);
+    });
+
+    // Close results on outside click
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.global-search')) {
+            results.classList.add('hidden');
+        }
     });
 }
 
