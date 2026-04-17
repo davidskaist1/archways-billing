@@ -42,8 +42,33 @@ async function init() {
 
     document.getElementById('refresh-btn').addEventListener('click', load);
     document.getElementById('add-auth-btn').addEventListener('click', () => openAuthForm());
+    document.getElementById('backfill-btn').addEventListener('click', runBackfill);
 
     await load();
+}
+
+async function runBackfill() {
+    const btn = document.getElementById('backfill-btn');
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+
+    try {
+        const res = await fetch('/.netlify/functions/backfill-authorizations');
+        const result = await res.json();
+
+        if (!result.ok) {
+            throw new Error(result.error || 'Sync failed');
+        }
+
+        const msg = `Synced ${result.total} auths: ${result.created} created, ${result.updated} updated${result.failed ? ', ' + result.failed + ' failed' : ''}.`;
+        showToast(msg, result.failed > 0 ? 'warning' : 'success', 6000);
+        await load();
+    } catch (err) {
+        showToast('Sync failed: ' + err.message, 'error');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '🔄 Sync from CRM';
 }
 
 async function load() {
@@ -57,11 +82,14 @@ async function load() {
         `)
         .order('end_date');
 
-    // For each auth, count used units from claims
+    // For each auth, prefer CRM-provided used_hours, fall back to unit-based calc from claims
     const enriched = [];
     for (const a of (auths || [])) {
         let usedUnits = 0;
-        if (a.client_id && a.cpt_codes?.length) {
+        let usedHours = parseFloat(a.used_hours) || 0;
+
+        // If we don't have used_hours from CRM, try to compute from claims
+        if (!a.used_hours && a.client_id && a.cpt_codes?.length) {
             const { data: claims } = await supabase
                 .from('claims')
                 .select('units')
@@ -71,11 +99,16 @@ async function load() {
                 .lte('service_date', a.end_date);
 
             usedUnits = (claims || []).reduce((sum, c) => sum + parseFloat(c.units || 0), 0);
+            usedHours = usedUnits / 4; // CPT codes are usually in 15-min units, so 4 units = 1 hour
         }
 
-        const utilization = a.approved_units > 0
-            ? Math.min(100, Math.round(usedUnits / a.approved_units * 100))
-            : 0;
+        // Utilization: prefer hours-based calc if we have totalApprovedHours, else units
+        let utilization = 0;
+        if (a.total_approved_hours && a.total_approved_hours > 0) {
+            utilization = Math.min(100, Math.round(usedHours / parseFloat(a.total_approved_hours) * 100));
+        } else if (a.approved_units > 0) {
+            utilization = Math.min(100, Math.round(usedUnits / a.approved_units * 100));
+        }
 
         const now = new Date();
         const end = new Date(a.end_date);
@@ -90,6 +123,7 @@ async function load() {
         enriched.push({
             ...a,
             used_units: usedUnits,
+            used_hours: usedHours,
             utilization_pct: utilization,
             days_left: daysLeft,
             computed_status: computedStatus,
@@ -154,11 +188,29 @@ function render() {
             ? `<span class="text-warning">${a.days_left} days left</span>`
             : `<span class="text-muted">${a.days_left} days left</span>`;
 
+        // Utilization display — prefer hours if we have totalApprovedHours
+        let utilizationLine = '';
+        if (a.total_approved_hours) {
+            utilizationLine = `<strong>${a.used_hours.toFixed(1)}</strong> / ${a.total_approved_hours} hours (${a.utilization_pct}%)`;
+        } else if (a.approved_units) {
+            utilizationLine = `<strong>${a.used_units}</strong> / ${a.approved_units} units (${a.utilization_pct}%)`;
+        } else {
+            utilizationLine = `<span class="text-muted">No total specified</span>`;
+        }
+
+        const sourceTag = a.source === 'archways-crm'
+            ? '<span class="badge badge-info text-xs" title="Synced from CRM">🔄 CRM</span>'
+            : a.source === 'manual'
+            ? ''
+            : '';
+
         html += `<div class="card mb-2" style="cursor:pointer;" data-auth-id="${a.id}">
             <div class="flex-between mb-1">
                 <div>
                     <strong>${a.client_name}</strong>
                     <span class="badge ${statusColor}">${a.computed_status}</span>
+                    ${sourceTag}
+                    ${a.service_type ? `<span class="badge badge-secondary">${a.service_type.replace(/_/g, ' ')}</span>` : ''}
                 </div>
                 <div class="text-right">
                     <div class="font-mono text-sm">#${a.auth_number}</div>
@@ -171,12 +223,12 @@ function render() {
                     <div>${formatDate(a.start_date)} – ${formatDate(a.end_date)}</div>
                 </div>
                 <div>
-                    <div class="text-xs text-muted">CPT Codes</div>
-                    <div>${(a.cpt_codes || []).join(', ') || '—'}</div>
-                </div>
-                <div>
                     <div class="text-xs text-muted">Hours/Week</div>
                     <div>${a.approved_hours_per_week || '—'}</div>
+                </div>
+                <div>
+                    <div class="text-xs text-muted">Total Hours</div>
+                    <div>${a.total_approved_hours || '—'}</div>
                 </div>
                 <div>
                     <div class="text-xs text-muted">Time Remaining</div>
@@ -187,7 +239,7 @@ function render() {
                 <div style="flex:1;">
                     <div class="flex-between text-xs mb-1">
                         <span class="text-muted">Utilization</span>
-                        <span><strong>${a.used_units}</strong> / ${a.approved_units || '?'} units (${a.utilization_pct}%)</span>
+                        <span>${utilizationLine}</span>
                     </div>
                     <div class="util-bar">
                         <div class="util-bar-fill ${utilClass}" style="width:${a.utilization_pct}%"></div>
@@ -265,12 +317,26 @@ function openAuthForm(auth = null) {
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Approved Units (Total)</label>
-                    <input class="form-input" type="number" name="approved_units" value="${auth?.approved_units || ''}">
-                </div>
-                <div class="form-group">
                     <label class="form-label">Hours / Week</label>
                     <input class="form-input" type="number" step="0.25" name="approved_hours_per_week" value="${auth?.approved_hours_per_week || ''}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Total Approved Hours</label>
+                    <input class="form-input" type="number" step="0.25" name="total_approved_hours" value="${auth?.total_approved_hours || ''}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Used Hours</label>
+                    <input class="form-input" type="number" step="0.25" name="used_hours" value="${auth?.used_hours || 0}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Service Type</label>
+                    <input class="form-input" name="service_type" value="${auth?.service_type || ''}" placeholder="e.g. initial_assessment, direct_therapy">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Approved Units (Total, optional)</label>
+                    <input class="form-input" type="number" name="approved_units" value="${auth?.approved_units || ''}">
                 </div>
             </div>
             <div class="form-group">
@@ -320,8 +386,12 @@ function openAuthForm(auth = null) {
             end_date: fd.get('end_date'),
             approved_units: fd.get('approved_units') ? parseInt(fd.get('approved_units')) : null,
             approved_hours_per_week: fd.get('approved_hours_per_week') ? parseFloat(fd.get('approved_hours_per_week')) : null,
+            total_approved_hours: fd.get('total_approved_hours') ? parseFloat(fd.get('total_approved_hours')) : null,
+            used_hours: fd.get('used_hours') ? parseFloat(fd.get('used_hours')) : 0,
+            service_type: fd.get('service_type').trim() || null,
             cpt_codes: cptRaw ? cptRaw.split(',').map(c => c.trim()).filter(Boolean) : [],
-            notes: fd.get('notes').trim() || null
+            notes: fd.get('notes').trim() || null,
+            source: auth?.source || 'manual'
         };
 
         if (!record.client_id || !record.payer_id || !record.auth_number || !record.start_date || !record.end_date) {
