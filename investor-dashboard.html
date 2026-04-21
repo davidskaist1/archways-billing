@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <div>
+                    <h1>Welcome Back</h1>
+                    <p class="text-sm text-muted" id="current-date"></p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="export-btn">📊 Export to Excel</button>
+                </div>
+            </div>
+
+            <!-- Top-line KPIs -->
+            <div class="kpi-grid">
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Revenue — Last 30 Days</div>
+                    <div class="kpi-value" id="kpi-revenue-30">—</div>
+                    <div class="kpi-sub" id="kpi-revenue-sub"></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Net Profit — Last 30 Days</div>
+                    <div class="kpi-value" id="kpi-profit-30">—</div>
+                    <div class="kpi-sub" id="kpi-margin-sub"></div>
+                </div>
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Avg Days to Get Paid</div>
+                    <div class="kpi-value" id="kpi-ar-lag">—</div>
+                    <div class="kpi-sub">From service date</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Outstanding AR</div>
+                    <div class="kpi-value" id="kpi-ar-outstanding">—</div>
+                    <div class="kpi-sub">Money owed by insurance</div>
+                </div>
+            </div>
+
+            <!-- Business snapshot -->
+            <div class="card mb-3">
+                <h3 class="mb-2">Business Snapshot</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:24px;">
+                    <div>
+                        <div class="text-xs text-muted">Lifetime Revenue</div>
+                        <div style="font-size:1.3rem;font-weight:700;" id="snap-lifetime-revenue">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Active Clients</div>
+                        <div style="font-size:1.3rem;font-weight:700;" id="snap-active-clients">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Active Staff</div>
+                        <div style="font-size:1.3rem;font-weight:700;" id="snap-active-staff">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Capital Raised</div>
+                        <div style="font-size:1.3rem;font-weight:700;" id="snap-capital">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Distributions Paid</div>
+                        <div style="font-size:1.3rem;font-weight:700;" id="snap-distributions">—</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 12-month trend chart -->
+            <div class="card mb-3">
+                <h3 class="mb-2">Revenue & Profit — Last 12 Months</h3>
+                <canvas id="trend-chart" height="80"></canvas>
+            </div>
+
+            <!-- Recent month details -->
+            <div class="card">
+                <h3 class="mb-2">Monthly P&L</h3>
+                <div id="pl-table"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script type="module" src="js/investor-dashboard.js"></script>
+</body>
+</html>

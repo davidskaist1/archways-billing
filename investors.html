@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investors — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Investors</h1>
+                <div class="page-actions">
+                    <button class="btn btn-primary" id="add-investor-btn">+ Add Investor</button>
+                </div>
+            </div>
+
+            <p class="text-sm text-muted mb-2">Manage investors, track capital contributions, and record distributions. To give an investor login access to the portal, first create their user account on the Users page with role "investor", then link them here.</p>
+
+            <div id="investors-list"></div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/investors.js"></script>
+</body>
+</html>

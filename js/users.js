@@ -80,9 +80,10 @@ function setupFilters() {
 
 function roleDescription(role) {
     const descs = {
-        admin: 'Full access to everything — billing, payroll, staff, clients, contracts, reports, users, clearinghouse.',
+        admin: 'Full access to everything — billing, payroll, staff, clients, contracts, reports, users, clearinghouse, investor portal.',
         billing: 'Access to billing, claims, payments, clearinghouse, contracts, clients, and reports. No payroll or user management.',
-        payroll: 'Access to payroll, sessions, clients, and reports. No billing or user management.'
+        payroll: 'Access to payroll, sessions, clients, and reports. No billing or user management.',
+        investor: 'Access to investor portal only — financial dashboard and pro forma. Cannot see clients, claims, staff, or any billing/payroll data.'
     };
     return descs[role] || '';
 }
@@ -118,6 +119,7 @@ function openAddModal() {
                     <option value="billing">Billing</option>
                     <option value="payroll">Payroll</option>
                     <option value="admin">Admin</option>
+                    <option value="investor">Investor</option>
                 </select>
                 <p class="text-xs text-muted mt-1" id="role-desc">${roleDescription('billing')}</p>
             </div>
@@ -224,6 +226,7 @@ function openEditModal(user) {
                     <option value="billing" ${user.role === 'billing' ? 'selected' : ''}>Billing</option>
                     <option value="payroll" ${user.role === 'payroll' ? 'selected' : ''}>Payroll</option>
                     <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    <option value="investor" ${user.role === 'investor' ? 'selected' : ''}>Investor</option>
                 </select>
                 ${isSelf ? '<span class="text-xs text-muted">You cannot change your own role.</span>' : ''}
                 <p class="text-xs text-muted mt-1" id="edit-role-desc">${roleDescription(user.role)}</p>

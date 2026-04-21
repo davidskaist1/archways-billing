@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Forma — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Pro Forma / What-If Calculator</h1>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="export-btn">📊 Export</button>
+                    <button class="btn btn-secondary" id="save-btn">💾 Save Scenario</button>
+                    <button class="btn btn-primary" id="reset-btn">Reset to Current</button>
+                </div>
+            </div>
+
+            <p class="text-sm text-muted mb-3">Tweak the assumptions below to see how changes to client count, hours, rates, and costs flow through to monthly profit. Save scenarios to compare them later.</p>
+
+            <div class="grid-2 gap-lg" style="grid-template-columns: 400px 1fr; align-items: start;">
+                <!-- Input Panel -->
+                <div class="card">
+                    <h3 class="mb-2">Assumptions</h3>
+
+                    <h4 style="font-size:0.85rem;" class="mb-1 text-muted">REVENUE</h4>
+                    <div class="form-group">
+                        <label class="form-label">Active Clients</label>
+                        <input class="form-input pf-input" type="number" id="pf-clients" value="20" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Avg Billable Hours per Client / Week</label>
+                        <input class="form-input pf-input" type="number" step="0.5" id="pf-hours-per-client" value="20">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Avg Billed Rate per Hour</label>
+                        <input class="form-input pf-input" type="number" step="0.01" id="pf-billed-rate" value="120">
+                        <span class="text-xs text-muted">Weighted average across CPT codes</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Collection Rate (%)</label>
+                        <input class="form-input pf-input" type="number" step="0.1" id="pf-collection-rate" value="92">
+                        <span class="text-xs text-muted">% of billed that actually collects</span>
+                    </div>
+
+                    <hr style="border:none;border-top:1px solid var(--color-border);margin:16px 0;">
+
+                    <h4 style="font-size:0.85rem;" class="mb-1 text-muted">COSTS</h4>
+                    <div class="form-group">
+                        <label class="form-label">Avg Staff Hourly Rate</label>
+                        <input class="form-input pf-input" type="number" step="0.01" id="pf-staff-rate" value="35">
+                        <span class="text-xs text-muted">What we pay RBTs/BCBAs</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Staff Utilization (%)</label>
+                        <input class="form-input pf-input" type="number" step="0.1" id="pf-utilization" value="80">
+                        <span class="text-xs text-muted">% of paid hours that are billable</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Payroll Tax & Benefits (%)</label>
+                        <input class="form-input pf-input" type="number" step="0.1" id="pf-payroll-tax" value="15">
+                        <span class="text-xs text-muted">On top of gross wages</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Monthly Fixed Operating Costs</label>
+                        <input class="form-input pf-input" type="number" step="0.01" id="pf-fixed-opex" value="8000">
+                        <span class="text-xs text-muted">Rent, software, insurance, etc.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Variable OpEx (% of revenue)</label>
+                        <input class="form-input pf-input" type="number" step="0.1" id="pf-variable-opex" value="3">
+                    </div>
+                </div>
+
+                <!-- Output Panel -->
+                <div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card kpi-success">
+                            <div class="kpi-label">Monthly Revenue</div>
+                            <div class="kpi-value" id="out-revenue">$0</div>
+                            <div class="kpi-sub" id="out-revenue-sub"></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Monthly Costs</div>
+                            <div class="kpi-value" id="out-costs">$0</div>
+                            <div class="kpi-sub" id="out-costs-sub"></div>
+                        </div>
+                        <div class="kpi-card" id="profit-card">
+                            <div class="kpi-label">Monthly Net Profit</div>
+                            <div class="kpi-value" id="out-profit">$0</div>
+                            <div class="kpi-sub" id="out-margin"></div>
+                        </div>
+                        <div class="kpi-card kpi-warning">
+                            <div class="kpi-label">Break-Even Clients</div>
+                            <div class="kpi-value" id="out-breakeven">—</div>
+                            <div class="kpi-sub">At current assumptions</div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <h3 class="mb-2">Cost Breakdown</h3>
+                        <canvas id="cost-chart" height="80"></canvas>
+                    </div>
+
+                    <div class="card mb-3">
+                        <h3 class="mb-2">Annual Projection</h3>
+                        <div id="annual-table"></div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="mb-2">Sensitivity Analysis</h3>
+                        <p class="text-sm text-muted mb-2">How monthly profit changes if you move one dial at a time:</p>
+                        <div id="sensitivity-table"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <h3 class="mb-2">Saved Scenarios</h3>
+                <div id="scenarios-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script type="module" src="js/pro-forma.js"></script>
+</body>
+</html>

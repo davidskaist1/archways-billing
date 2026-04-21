@@ -42,11 +42,19 @@
     <script type="module">
         import { signIn, resetPassword, getSession } from './js/auth.js';
 
-        // If already logged in, redirect
+        // If already logged in, redirect to the role-appropriate landing page
         import { supabase } from './js/supabase-client.js';
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-            window.location.href = 'dashboard.html';
+            // Check user's role to send them to the right place
+            const { data: appUser } = await supabase
+                .from('app_users')
+                .select('role')
+                .eq('auth_user_id', session.user.id)
+                .eq('is_active', true)
+                .single();
+            const landingPage = appUser?.role === 'investor' ? 'investor-dashboard.html' : 'dashboard.html';
+            window.location.href = landingPage;
         }
 
         const form = document.getElementById('login-form');
@@ -62,8 +70,9 @@
             try {
                 const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value;
-                await signIn(email, password);
-                window.location.href = 'dashboard.html';
+                const { appUser } = await signIn(email, password);
+                const landingPage = appUser?.role === 'investor' ? 'investor-dashboard.html' : 'dashboard.html';
+                window.location.href = landingPage;
             } catch (err) {
                 errorEl.textContent = err.message || 'Invalid email or password.';
                 errorEl.style.display = 'block';
