@@ -5,6 +5,7 @@
   "description": "Billing & payroll tracking for Archways ABA",
   "dependencies": {
     "@netlify/functions": "^2.8.0",
+    "adm-zip": "^0.5.16",
     "ssh2-sftp-client": "^10.0.3"
   }
 }

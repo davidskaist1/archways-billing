@@ -9,10 +9,15 @@
 //   OFFICE_ALLY_SFTP_PORT     (default 22)
 //   OFFICE_ALLY_SFTP_USER
 //   OFFICE_ALLY_SFTP_PASSWORD
-//   OFFICE_ALLY_INBOUND_DIR   (default /inbound)  — where 835/277CA land
-//   OFFICE_ALLY_ARCHIVE_DIR   (default /archive)  — where we move processed files
+//   OFFICE_ALLY_OUTBOUND_DIR  (default /outbound) — where OA drops 835/277CA files for us
+//   OFFICE_ALLY_ARCHIVE_DIR   (optional) — if set, we'll try to move processed files there
+//                              If not set, we just mark processed in the DB to skip on re-sync
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_KEY
+//
+// Note on folder naming (Office Ally's perspective):
+//   /inbound  = files going IN to Office Ally  (claim submissions — we don't use, CR handles)
+//   /outbound = files coming FROM Office Ally  (ERAs and reports — this is what we read)
 //
 // If OFFICE_ALLY_SFTP_HOST is not set, the function exits with a no-op
 // so nothing breaks while you're still getting your account set up.
@@ -21,6 +26,7 @@ const { schedule } = require('@netlify/functions');
 const SftpClient = require('ssh2-sftp-client');
 const { parse835, normalizeForImport } = require('./_lib/edi-835-parser');
 const { parse277CA } = require('./_lib/edi-277ca-parser');
+const { extractEdiContent } = require('./_lib/process-era-file');
 
 const handler = async (event) => {
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -29,8 +35,10 @@ const handler = async (event) => {
     const SFTP_PORT = parseInt(process.env.OFFICE_ALLY_SFTP_PORT || '22');
     const SFTP_USER = process.env.OFFICE_ALLY_SFTP_USER;
     const SFTP_PASSWORD = process.env.OFFICE_ALLY_SFTP_PASSWORD;
-    const INBOUND_DIR = process.env.OFFICE_ALLY_INBOUND_DIR || '/inbound';
-    const ARCHIVE_DIR = process.env.OFFICE_ALLY_ARCHIVE_DIR || '/archive';
+    // Support both OUTBOUND_DIR (correct) and INBOUND_DIR (legacy) env vars
+    const OUTBOUND_DIR = process.env.OFFICE_ALLY_OUTBOUND_DIR ||
+                         process.env.OFFICE_ALLY_INBOUND_DIR || '/outbound';
+    const ARCHIVE_DIR = process.env.OFFICE_ALLY_ARCHIVE_DIR || null;
 
     // Dormant mode: if credentials not configured yet, exit quietly
     if (!SFTP_HOST || !SFTP_USER || !SFTP_PASSWORD) {
@@ -89,40 +97,62 @@ const handler = async (event) => {
             readyTimeout: 30000
         });
 
-        const files = await sftp.list(INBOUND_DIR);
+        const files = await sftp.list(OUTBOUND_DIR);
         summary.filesFound = files.length;
+
+        // Fetch list of already-processed filenames so we can skip them
+        // (in case Office Ally doesn't let us delete/move files from /outbound)
+        const processedRes = await fetch(
+            `${SUPABASE_URL}/rest/v1/era_files?select=file_name&source=eq.office_ally&limit=5000`,
+            { headers: supabaseHeaders }
+        );
+        const processedFiles = new Set((await processedRes.json()).map(f => f.file_name));
 
         for (const file of files) {
             if (file.type !== '-') continue;  // skip directories
 
+            // Skip already-processed files
+            if (processedFiles.has(file.name)) {
+                continue;
+            }
+
             try {
-                const remotePath = `${INBOUND_DIR}/${file.name}`;
+                const remotePath = `${OUTBOUND_DIR}/${file.name}`;
                 const buffer = await sftp.get(remotePath);
-                const content = buffer.toString('utf8');
 
-                // Determine file type by content sniffing
-                const isERA = content.includes('ST*835');
-                const is277CA = content.includes('ST*277');
-
-                if (isERA) {
-                    const result = await processERA(content, file.name, supabaseHeaders, SUPABASE_URL);
-                    summary.paymentsCreated += result.paymentsCreated;
-                    summary.claimsMatched += result.claimsMatched;
-                } else if (is277CA) {
-                    const result = await process277CA(content, file.name, supabaseHeaders, SUPABASE_URL);
-                    summary.acknowledgmentsCreated += result.acknowledgmentsCreated;
-                } else {
-                    summary.errors.push(`${file.name}: Unknown file type`);
+                // Extract EDI content (handles ZIP files from Office Ally)
+                let extracted;
+                try {
+                    extracted = extractEdiContent(buffer, file.name);
+                } catch (extractErr) {
+                    summary.errors.push(`${file.name}: ${extractErr.message}`);
                     summary.filesFailed++;
                     continue;
                 }
 
-                // Archive the file
-                try {
-                    await sftp.rename(remotePath, `${ARCHIVE_DIR}/${file.name}`);
-                } catch (archiveErr) {
-                    // If rename fails, at least note it but don't fail the whole sync
-                    summary.errors.push(`${file.name}: archived failed — ${archiveErr.message}`);
+                for (const { filename: innerName, content, fileType } of extracted) {
+                    const displayName = innerName === file.name ? file.name : `${file.name}:${innerName}`;
+
+                    if (fileType === 'era') {
+                        const result = await processERA(content, displayName, supabaseHeaders, SUPABASE_URL);
+                        summary.paymentsCreated += result.paymentsCreated;
+                        summary.claimsMatched += result.claimsMatched;
+                    } else if (fileType === '277ca') {
+                        const result = await process277CA(content, displayName, supabaseHeaders, SUPABASE_URL);
+                        summary.acknowledgmentsCreated += result.acknowledgmentsCreated;
+                    } else {
+                        // Record but don't fail — 999/997 acks aren't critical
+                        summary.errors.push(`${displayName}: ${fileType} not processed (unknown type)`);
+                    }
+                }
+
+                // Try to archive if configured (Office Ally's /outbound may not permit this)
+                if (ARCHIVE_DIR) {
+                    try {
+                        await sftp.rename(remotePath, `${ARCHIVE_DIR}/${file.name}`);
+                    } catch (archiveErr) {
+                        // Log but don't fail — we'll skip on re-sync via the processedFiles set
+                    }
                 }
 
                 summary.filesProcessed++;
