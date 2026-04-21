@@ -16,11 +16,17 @@
                 <div class="page-actions">
                     <button class="btn btn-secondary" id="backfill-btn">🔄 Sync from CRM</button>
                     <button class="btn btn-secondary" id="refresh-btn">Refresh</button>
-                    <button class="btn btn-primary" id="add-auth-btn">+ Add Manual Auth</button>
+                    <button class="btn btn-success" id="request-auth-btn">📞 Request New Auth</button>
+                    <button class="btn btn-primary" id="add-auth-btn">+ Add Existing Auth</button>
                 </div>
             </div>
 
             <div class="kpi-grid">
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Pending Requests</div>
+                    <div class="kpi-value" id="kpi-pending">—</div>
+                    <div class="kpi-sub">Waiting on insurance</div>
+                </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Active Auths</div>
                     <div class="kpi-value" id="kpi-active">—</div>
@@ -33,15 +39,11 @@
                     <div class="kpi-label">Expired</div>
                     <div class="kpi-value" id="kpi-expired">—</div>
                 </div>
-                <div class="kpi-card kpi-success">
-                    <div class="kpi-label">Avg Utilization</div>
-                    <div class="kpi-value" id="kpi-utilization">—</div>
-                    <div class="kpi-sub">Active auths only</div>
-                </div>
             </div>
 
             <div class="tabs">
-                <button class="tab-btn active" data-tab="active">Active</button>
+                <button class="tab-btn active" data-tab="requests">Pending Requests</button>
+                <button class="tab-btn" data-tab="active">Active</button>
                 <button class="tab-btn" data-tab="expiring">Expiring Soon</button>
                 <button class="tab-btn" data-tab="expired">Expired</button>
                 <button class="tab-btn" data-tab="all">All</button>
