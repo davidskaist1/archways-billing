@@ -1400,6 +1400,38 @@ canvas {
     .sidebar {
         max-width: 85vw;
     }
+
+    /* All form inputs: full width, contained, iOS-zoom-safe */
+    input,
+    select,
+    textarea {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        /* font-size 16px prevents iOS Safari from auto-zooming on focus,
+           which visually cuts off content and confuses layout */
+        font-size: 16px !important;
+    }
+
+    /* Give form inputs breathing room on mobile */
+    .form-input,
+    .form-select,
+    .form-textarea {
+        padding: 10px 12px;
+    }
+
+    /* Preserve grid for pf-row (label + input stack) but no wider than container */
+    .pf-row > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* Any grid child can't push its parent wider */
+    [class*="grid"] > *,
+    div[style*="display:grid"] > *,
+    div[style*="display: grid"] > * {
+        min-width: 0;
+    }
 }
 
 /* ===========================================
