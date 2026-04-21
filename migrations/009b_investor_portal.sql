@@ -149,9 +149,9 @@ SELECT
     i.equity_percent,
     i.investor_type,
     i.is_active,
-    COALESCE(SUM(DISTINCT c.amount_total), 0) AS total_contributed,
-    COALESCE(SUM(DISTINCT d.amount_total), 0) AS total_distributed,
-    COALESCE(SUM(DISTINCT c.amount_total), 0) - COALESCE(SUM(DISTINCT d.amount_total), 0) AS net_outstanding,
+    COALESCE(c.amount_total, 0) AS total_contributed,
+    COALESCE(d.amount_total, 0) AS total_distributed,
+    COALESCE(c.amount_total, 0) - COALESCE(d.amount_total, 0) AS net_outstanding,
     c.first_contribution,
     c.last_contribution
 FROM investors i
