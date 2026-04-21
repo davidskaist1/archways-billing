@@ -1,10 +1,19 @@
-// Webhook endpoint: receive client data from the CRM when a client is onboarded
-// Called by the CRM when a client moves to "active" stage
-// Secured with BILLING_API_KEY shared secret
+// Webhook endpoint: receive client data from the CRM
+// Fires at two points: "Sent to Insurance" and "Active"
+// Upsert strategy (in priority order):
+//   1. Match by cr_client_id (if provided)
+//   2. Match by insurance_member_id (if provided)
+//   3. Match by first_name + last_name + date_of_birth
+//
+// Partial updates: null/empty values in the payload DO NOT overwrite
+// existing data. This way the first sync (sent_to_insurance, no auth yet)
+// doesn't get clobbered by the second sync (active, with auth).
+// Conversely, the auth number set by the "active" sync won't be wiped
+// if a later re-sync has a blank auth field.
 
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
+        return { statusCode: 405, body: JSON.stringify({ ok: false, error: 'Method not allowed' }) };
     }
 
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -12,32 +21,50 @@ exports.handler = async (event) => {
     const BILLING_API_KEY = process.env.BILLING_API_KEY;
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !BILLING_API_KEY) {
-        return { statusCode: 500, body: JSON.stringify({ error: 'Server configuration missing' }) };
+        return { statusCode: 500, body: JSON.stringify({ ok: false, error: 'Server configuration missing' }) };
     }
 
-    // Auth check
     const apiKey = event.headers['x-api-key'] || event.headers['X-Api-Key'];
     if (apiKey !== BILLING_API_KEY) {
-        return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
+        return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'Unauthorized' }) };
     }
 
     try {
         const body = JSON.parse(event.body);
-        const {
-            first_name,
-            last_name,
-            date_of_birth,
-            insurance_payer_name,
-            insurance_member_id,
-            authorization_number,
-            authorized_units_per_week,
-            cr_client_id
-        } = body;
 
-        if (!first_name || !last_name) {
+        // Accept many naming variations so we're resilient to CRM naming choices
+        const firstName =
+            body.child_first_name || body.childFirstName ||
+            body.first_name || body.firstName;
+        const lastName =
+            body.child_last_name || body.childLastName ||
+            body.last_name || body.lastName;
+        const dateOfBirth =
+            body.date_of_birth || body.dateOfBirth || body.dob;
+        const insurancePayerName =
+            body.insurance_payer_name || body.insurancePayerName ||
+            body.insurance || body.primary_insurance;
+        const insuranceMemberId =
+            body.insurance_member_id || body.insuranceMemberId ||
+            body.insurance_id || body.memberId || body.member_id;
+        const authorizationNumber =
+            body.authorization_number || body.authorizationNumber ||
+            body.auth_number || body.authNumber;
+        const authorizedUnitsPerWeek =
+            body.authorized_units_per_week || body.authorizedUnitsPerWeek ||
+            body.approved_hours_per_week || body.approvedHoursPerWeek;
+        const crClientId =
+            body.cr_client_id || body.crClientId ||
+            body.clientId || body.client_id;
+        const stage = body.stage || body.status; // sent_to_insurance, active, etc.
+
+        if (!firstName || !lastName) {
             return {
                 statusCode: 400,
-                body: JSON.stringify({ error: 'first_name and last_name are required' })
+                body: JSON.stringify({
+                    ok: false,
+                    error: 'first_name and last_name (or child_first_name / child_last_name) are required'
+                })
             };
         }
 
@@ -47,117 +74,165 @@ exports.handler = async (event) => {
             'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
         };
 
-        // Resolve or create insurance payer
+        // ----- Resolve or create insurance payer -----
         let payerId = null;
-        if (insurance_payer_name) {
+        if (insurancePayerName) {
             const payerRes = await fetch(
-                `${SUPABASE_URL}/rest/v1/insurance_payers?name=eq.${encodeURIComponent(insurance_payer_name)}&select=id`,
+                `${SUPABASE_URL}/rest/v1/insurance_payers?name=eq.${encodeURIComponent(insurancePayerName)}&select=id`,
                 { headers: supabaseHeaders }
             );
             const existing = await payerRes.json();
 
-            if (existing.length > 0) {
+            if (Array.isArray(existing) && existing.length > 0) {
                 payerId = existing[0].id;
             } else {
-                // Auto-create payer
                 const createRes = await fetch(`${SUPABASE_URL}/rest/v1/insurance_payers`, {
                     method: 'POST',
                     headers: { ...supabaseHeaders, 'Prefer': 'return=representation' },
                     body: JSON.stringify({
-                        name: insurance_payer_name,
-                        notes: 'Auto-created from CRM sync'
+                        name: insurancePayerName,
+                        notes: 'Auto-created from CRM client sync'
                     })
                 });
                 const created = await createRes.json();
-                payerId = created[0]?.id || null;
+                if (Array.isArray(created) && created.length > 0) payerId = created[0].id;
             }
         }
 
-        // Check if client already exists (by cr_client_id or by name + DOB)
+        // ----- Find existing client (3-tier match) -----
         let existingClient = null;
 
-        if (cr_client_id) {
+        // Tier 1: match by cr_client_id (most reliable)
+        if (!existingClient && crClientId) {
             const res = await fetch(
-                `${SUPABASE_URL}/rest/v1/clients?cr_client_id=eq.${encodeURIComponent(cr_client_id)}&select=id`,
+                `${SUPABASE_URL}/rest/v1/clients?cr_client_id=eq.${encodeURIComponent(crClientId)}&select=*`,
                 { headers: supabaseHeaders }
             );
             const found = await res.json();
-            if (found.length > 0) existingClient = found[0];
+            if (Array.isArray(found) && found.length > 0) existingClient = found[0];
         }
 
-        if (!existingClient && date_of_birth) {
+        // Tier 2: match by insurance_member_id
+        if (!existingClient && insuranceMemberId) {
             const res = await fetch(
-                `${SUPABASE_URL}/rest/v1/clients?first_name=eq.${encodeURIComponent(first_name)}&last_name=eq.${encodeURIComponent(last_name)}&date_of_birth=eq.${date_of_birth}&select=id`,
+                `${SUPABASE_URL}/rest/v1/clients?insurance_member_id=eq.${encodeURIComponent(insuranceMemberId)}&select=*`,
                 { headers: supabaseHeaders }
             );
             const found = await res.json();
-            if (found.length > 0) existingClient = found[0];
+            if (Array.isArray(found) && found.length > 0) existingClient = found[0];
         }
 
-        const record = {
-            first_name,
-            last_name,
-            date_of_birth: date_of_birth || null,
+        // Tier 3: match by name + DOB
+        if (!existingClient && dateOfBirth) {
+            const res = await fetch(
+                `${SUPABASE_URL}/rest/v1/clients?first_name=ilike.${encodeURIComponent(firstName)}&last_name=ilike.${encodeURIComponent(lastName)}&date_of_birth=eq.${dateOfBirth}&select=*`,
+                { headers: supabaseHeaders }
+            );
+            const found = await res.json();
+            if (Array.isArray(found) && found.length > 0) existingClient = found[0];
+        }
+
+        // Tier 4 (fallback): match by name alone (no DOB)
+        if (!existingClient && !dateOfBirth) {
+            const res = await fetch(
+                `${SUPABASE_URL}/rest/v1/clients?first_name=ilike.${encodeURIComponent(firstName)}&last_name=ilike.${encodeURIComponent(lastName)}&select=*&limit=1`,
+                { headers: supabaseHeaders }
+            );
+            const found = await res.json();
+            if (Array.isArray(found) && found.length > 0) existingClient = found[0];
+        }
+
+        // ----- Build partial record (null/empty values do not overwrite) -----
+        // For an update, we only include fields that have actual values in the payload.
+        // This lets the first sync set name/DOB/insurance, and the second sync
+        // add the auth number without wiping anything that was already populated.
+        const updateRecord = {};
+        const insertRecord = {
+            first_name: firstName,
+            last_name: lastName,
+            date_of_birth: dateOfBirth || null,
             insurance_payer_id: payerId,
-            insurance_member_id: insurance_member_id || null,
-            authorization_number: authorization_number || null,
-            authorized_units_per_week: authorized_units_per_week ? parseInt(authorized_units_per_week) : null,
-            cr_client_id: cr_client_id || null,
+            insurance_member_id: insuranceMemberId || null,
+            authorization_number: authorizationNumber || null,
+            authorized_units_per_week: authorizedUnitsPerWeek ? parseInt(authorizedUnitsPerWeek) : null,
+            cr_client_id: crClientId || null,
             is_active: true
         };
 
-        let result;
+        // Only include fields with values for updates
+        if (firstName) updateRecord.first_name = firstName;
+        if (lastName) updateRecord.last_name = lastName;
+        if (dateOfBirth) updateRecord.date_of_birth = dateOfBirth;
+        if (payerId) updateRecord.insurance_payer_id = payerId;
+        if (insuranceMemberId) updateRecord.insurance_member_id = insuranceMemberId;
+        if (authorizationNumber) updateRecord.authorization_number = authorizationNumber;
+        if (authorizedUnitsPerWeek) updateRecord.authorized_units_per_week = parseInt(authorizedUnitsPerWeek);
+        if (crClientId) updateRecord.cr_client_id = crClientId;
 
+        // Stage "active" should ensure is_active = true (they made it to services)
+        if (stage && String(stage).toLowerCase() === 'active') {
+            updateRecord.is_active = true;
+        }
+
+        // ----- Upsert -----
         if (existingClient) {
-            // Update existing
             const updateRes = await fetch(
                 `${SUPABASE_URL}/rest/v1/clients?id=eq.${existingClient.id}`,
                 {
                     method: 'PATCH',
                     headers: { ...supabaseHeaders, 'Prefer': 'return=representation' },
-                    body: JSON.stringify(record)
+                    body: JSON.stringify(updateRecord)
                 }
             );
-            result = await updateRes.json();
-            return {
-                statusCode: 200,
-                body: JSON.stringify({
-                    success: true,
-                    action: 'updated',
-                    client_id: existingClient.id,
-                    data: result[0]
-                })
-            };
-        } else {
-            // Insert new
-            const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/clients`, {
-                method: 'POST',
-                headers: { ...supabaseHeaders, 'Prefer': 'return=representation' },
-                body: JSON.stringify(record)
-            });
-            result = await insertRes.json();
 
-            if (!insertRes.ok) {
+            if (!updateRes.ok) {
+                const errText = await updateRes.text();
                 return {
-                    statusCode: insertRes.status,
-                    body: JSON.stringify({ error: 'Failed to insert client', details: result })
+                    statusCode: updateRes.status,
+                    body: JSON.stringify({ ok: false, error: 'Update failed: ' + errText })
                 };
             }
 
+            const result = await updateRes.json();
+            return {
+                statusCode: 200,
+                body: JSON.stringify({
+                    ok: true,
+                    action: 'updated',
+                    client_id: existingClient.id,
+                    stage: stage || null
+                })
+            };
+        } else {
+            const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/clients`, {
+                method: 'POST',
+                headers: { ...supabaseHeaders, 'Prefer': 'return=representation' },
+                body: JSON.stringify(insertRecord)
+            });
+
+            if (!insertRes.ok) {
+                const errText = await insertRes.text();
+                return {
+                    statusCode: insertRes.status,
+                    body: JSON.stringify({ ok: false, error: 'Insert failed: ' + errText })
+                };
+            }
+
+            const result = await insertRes.json();
             return {
                 statusCode: 201,
                 body: JSON.stringify({
-                    success: true,
+                    ok: true,
                     action: 'created',
                     client_id: result[0].id,
-                    data: result[0]
+                    stage: stage || null
                 })
             };
         }
     } catch (err) {
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: err.message })
+            body: JSON.stringify({ ok: false, error: err.message })
         };
     }
 };
