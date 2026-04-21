@@ -10,6 +10,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
     <style>
+        .pf-layout {
+            display: grid;
+            grid-template-columns: 540px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+        @media (max-width: 1024px) {
+            .pf-layout {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
         .pf-section { margin-bottom: 20px; }
         .pf-section-header {
             cursor: pointer;
@@ -155,7 +167,7 @@
                 This is your MO Pro Forma baked into the app. Every field is editable — tweak, add, or delete line items freely. <strong>Click any KPI card</strong> to see exactly how it was calculated.
             </p>
 
-            <div class="grid-2 gap-lg" style="grid-template-columns: 540px 1fr; align-items: start;">
+            <div class="pf-layout">
                 <!-- INPUTS -->
                 <div>
 

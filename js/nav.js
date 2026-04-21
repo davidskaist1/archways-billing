@@ -131,6 +131,17 @@ function renderNav() {
     sidebar.innerHTML = navHTML;
     document.body.prepend(sidebar);
 
+    // Sidebar backdrop (for mobile — tap to close)
+    const backdrop = document.createElement('div');
+    backdrop.className = 'sidebar-backdrop';
+    backdrop.id = 'sidebar-backdrop';
+    backdrop.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.remove('open');
+        backdrop.classList.remove('visible');
+        document.getElementById('mobile-menu-btn').innerHTML = svgIcon('menu');
+    });
+    document.body.prepend(backdrop);
+
     // Mobile menu button
     const menuBtn = document.createElement('button');
     menuBtn.className = 'mobile-menu-btn';
@@ -144,6 +155,7 @@ function renderNav() {
     menuBtn.addEventListener('click', () => {
         const sb = document.getElementById('sidebar');
         sb.classList.toggle('open');
+        backdrop.classList.toggle('visible', sb.classList.contains('open'));
         menuBtn.innerHTML = sb.classList.contains('open') ? svgIcon('x') : svgIcon('menu');
     });
 
@@ -152,6 +164,8 @@ function renderNav() {
         link.addEventListener('click', () => {
             if (window.innerWidth <= 1024) {
                 sidebar.classList.remove('open');
+                backdrop.classList.remove('visible');
+                menuBtn.innerHTML = svgIcon('menu');
             }
         });
     });
