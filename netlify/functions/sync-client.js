@@ -175,6 +175,9 @@ exports.handler = async (event) => {
         }
 
         // ----- Upsert -----
+        let clientId = null;
+        let action = null;
+
         if (existingClient) {
             const updateRes = await fetch(
                 `${SUPABASE_URL}/rest/v1/clients?id=eq.${existingClient.id}`,
@@ -193,16 +196,8 @@ exports.handler = async (event) => {
                 };
             }
 
-            const result = await updateRes.json();
-            return {
-                statusCode: 200,
-                body: JSON.stringify({
-                    ok: true,
-                    action: 'updated',
-                    client_id: existingClient.id,
-                    stage: stage || null
-                })
-            };
+            clientId = existingClient.id;
+            action = 'updated';
         } else {
             const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/clients`, {
                 method: 'POST',
@@ -219,16 +214,47 @@ exports.handler = async (event) => {
             }
 
             const result = await insertRes.json();
-            return {
-                statusCode: 201,
-                body: JSON.stringify({
-                    ok: true,
-                    action: 'created',
-                    client_id: result[0].id,
-                    stage: stage || null
-                })
-            };
+            clientId = result[0].id;
+            action = 'created';
         }
+
+        // ----- Auto-create pending Benefits Verification if stage is sent_to_insurance -----
+        let bvCreated = false;
+        const isSentToInsurance = stage && String(stage).toLowerCase().replace(/\s+/g, '_') === 'sent_to_insurance';
+
+        if (isSentToInsurance && clientId) {
+            // Check if there's already an open (non-completed) BV for this client
+            const bvCheck = await fetch(
+                `${SUPABASE_URL}/rest/v1/benefit_verifications?client_id=eq.${clientId}&status=in.(pending,in_progress)&select=id`,
+                { headers: supabaseHeaders }
+            );
+            const existingBV = await bvCheck.json();
+
+            if (!Array.isArray(existingBV) || existingBV.length === 0) {
+                const bvRes = await fetch(`${SUPABASE_URL}/rest/v1/benefit_verifications`, {
+                    method: 'POST',
+                    headers: supabaseHeaders,
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        payer_id: payerId,
+                        status: 'pending',
+                        plan_year: new Date().getFullYear()
+                    })
+                });
+                bvCreated = bvRes.ok;
+            }
+        }
+
+        return {
+            statusCode: action === 'created' ? 201 : 200,
+            body: JSON.stringify({
+                ok: true,
+                action,
+                client_id: clientId,
+                stage: stage || null,
+                benefit_verification_created: bvCreated
+            })
+        };
     } catch (err) {
         return {
             statusCode: 500,

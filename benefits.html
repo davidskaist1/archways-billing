@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benefits Verification — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <h1>Benefits Verification</h1>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="refresh-btn">Refresh</button>
+                    <button class="btn btn-primary" id="add-bv-btn">+ New Verification</button>
+                </div>
+            </div>
+
+            <p class="text-sm text-muted mb-3">
+                Clients that land here are ones that hit <strong>"Sent to Insurance"</strong> in the CRM.
+                Call the insurance company, fill in the form below, and click <strong>"Complete & Push to CRM"</strong> to send the benefits info back to the client's file.
+            </p>
+
+            <div class="kpi-grid">
+                <div class="kpi-card kpi-warning">
+                    <div class="kpi-label">Pending</div>
+                    <div class="kpi-value" id="kpi-pending">—</div>
+                    <div class="kpi-sub">Need to call insurance</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">In Progress</div>
+                    <div class="kpi-value" id="kpi-inprogress">—</div>
+                    <div class="kpi-sub">Started but incomplete</div>
+                </div>
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Completed This Month</div>
+                    <div class="kpi-value" id="kpi-completed">—</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Pushed to CRM</div>
+                    <div class="kpi-value" id="kpi-pushed">—</div>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="queue">Queue</button>
+                <button class="tab-btn" data-tab="completed">Completed</button>
+                <button class="tab-btn" data-tab="all">All</button>
+            </div>
+
+            <div class="filter-bar">
+                <div class="form-group">
+                    <label class="form-label">Search Client</label>
+                    <input class="form-input" type="text" id="filter-client" placeholder="Client name...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Payer</label>
+                    <select class="form-select" id="filter-payer"><option value="">All Payers</option></select>
+                </div>
+            </div>
+
+            <div id="bv-list"></div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/benefits.js"></script>
+</body>
+</html>
