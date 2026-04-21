@@ -80,9 +80,51 @@ SELECT
         -- Rates — per 15-min unit (1 hr = 4 units)
         -- Note: MO Medicaid 97153 is $16.37 per unit = $65.48/hr
         'medicaid_rate_15min', 16.37,
-        'in_network_rate_15min', 0,
+        'in_network_rate_15min', 16.37,
         'oon_rate_15min', 37.50,
         'deductible_per_resident', 5000,
+        -- Dynamic arrays: admin salaries, non-labor costs, startup costs
+        -- (These will be populated by the JS defaults on first load if not present)
+        'admin_salaries', jsonb_build_array(
+            jsonb_build_object('name','CEO','annual',250000,'start_at',0,'per_clients',0),
+            jsonb_build_object('name','Chief Clinical Director (QA)','annual',150000,'start_at',30,'per_clients',0),
+            jsonb_build_object('name','Director of Intake','annual',100000,'start_at',10,'per_clients',0),
+            jsonb_build_object('name','Director of Compliance','annual',90000,'start_at',30,'per_clients',0),
+            jsonb_build_object('name','Director of Care Management','annual',90000,'start_at',10,'per_clients',0),
+            jsonb_build_object('name','Director of HR','annual',150000,'start_at',30,'per_clients',0),
+            jsonb_build_object('name','Recruiter','annual',75000,'start_at',10,'per_clients',0),
+            jsonb_build_object('name','State Director','annual',150000,'start_at',50,'per_clients',0),
+            jsonb_build_object('name','Overseas Assistant','annual',30000,'start_at',0,'per_clients',0),
+            jsonb_build_object('name','Assistant QAs','annual',90000,'start_at',50,'per_clients',200),
+            jsonb_build_object('name','Assistant Director of Compliance','annual',65000,'start_at',100,'per_clients',100),
+            jsonb_build_object('name','Assistant Care Management','annual',65000,'start_at',40,'per_clients',40),
+            jsonb_build_object('name','Assistant Clinical Director','annual',60000,'start_at',50,'per_clients',50),
+            jsonb_build_object('name','Payroll Director','annual',90000,'start_at',50,'per_clients',200),
+            jsonb_build_object('name','HR Rep','annual',65000,'start_at',50,'per_clients',200)
+        ),
+        'non_labor_costs', jsonb_build_array(
+            jsonb_build_object('name','Central Reach','amount',90,'scale_type','per_employee','scale_divisor',1),
+            jsonb_build_object('name','Brellium (clinical review)','amount',1800,'scale_type','per_clients','scale_divisor',30),
+            jsonb_build_object('name','Leadtrap (AI Chatbot)','amount',800,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Marketing Company','amount',10000,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Digital Advertising','amount',10000,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Liability Insurance','amount',166.67,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Indeed','amount',2500,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Apploi','amount',833.33,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','IT / Phone','amount',1250,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Legal','amount',833.33,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Accounting','amount',500,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Payroll Software','amount',833.33,'scale_type','fixed','scale_divisor',0),
+            jsonb_build_object('name','Medical Billing','amount',6,'scale_type','pct_revenue','scale_divisor',0),
+            jsonb_build_object('name','Bad Debt','amount',1,'scale_type','pct_revenue','scale_divisor',0)
+        ),
+        'startup_costs', jsonb_build_array(
+            jsonb_build_object('name','Legal (entity formation)','amount',10000),
+            jsonb_build_object('name','Tech / IT Setup','amount',5000),
+            jsonb_build_object('name','Initial Software Licenses','amount',3000),
+            jsonb_build_object('name','Initial Marketing','amount',30000),
+            jsonb_build_object('name','Initial Salaries (pre-revenue)','amount',100000)
+        ),
         -- RBT
         'medicaid_split', 100,
         'in_network_split', 0,
@@ -103,41 +145,9 @@ SELECT
         'ramp_until_month', 4,
         'stabilized_net_growth_month', 4.5,
         'client_max', 250,
-        -- Key fixed salaries (stabilized annual)
-        'ceo_salary_annual', 250000,
-        'clinical_director_annual', 150000,
-        'director_intake_annual', 100000,
-        'director_compliance_annual', 90000,
-        'director_care_mgmt_annual', 90000,
-        'director_hr_annual', 150000,
-        'recruiter_annual', 75000,
-        'state_director_annual', 150000,
-        'overseas_assistant_monthly', 2500,
-        -- Non-labor monthly (stabilized)
-        'central_reach_per_employee', 90,
-        'brellium_per_30_clients', 1800,
-        'leadtrap_monthly', 800,
-        'marketing_monthly', 10000,
-        'advertising_monthly', 10000,
-        'liability_insurance_monthly', 166.67,
-        'indeed_monthly', 2500,
-        'apploi_monthly', 833.33,
-        'it_phone_monthly', 1250,
-        'legal_monthly', 833.33,
-        'accounting_monthly', 500,
-        'payroll_software_monthly', 833.33,
-        -- Revenue-variable
-        'medical_billing_pct_revenue', 6,
-        'bad_debt_pct_revenue', 1,
         -- Other
         'cash_lag_days', 45,
         'start_up_lag_months', 3,
-        -- Startup
-        'startup_legal', 10000,
-        'startup_tech_it', 5000,
-        'startup_software', 3000,
-        'startup_marketing', 30000,
-        'startup_salaries', 100000,
         -- Exit
         'exit_multiple', 4,
         'exit_year', 8,
