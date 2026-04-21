@@ -7,18 +7,25 @@ let currentTab = 'requests';
 let allAuths = [];
 let clients = [];
 let payers = [];
+let bcbas = [];  // Active BCBAs with NPI (eligible to be listed on an auth request)
 
 async function init() {
     const auth = await requireAuth(['admin', 'billing']);
     if (!auth) return;
     renderNav();
 
-    const [clientsRes, payersRes] = await Promise.all([
+    const [clientsRes, payersRes, bcbasRes] = await Promise.all([
         supabase.from('clients').select('id, first_name, last_name, cr_client_id, insurance_payer_id').eq('is_active', true).order('last_name'),
-        supabase.from('insurance_payers').select('id, name').eq('is_active', true).order('name')
+        supabase.from('insurance_payers').select('id, name').eq('is_active', true).order('name'),
+        supabase.from('staff')
+            .select('id, first_name, last_name, credential, npi, licensed_states, credentialed_payer_ids')
+            .eq('is_active', true)
+            .in('credential', ['BCBA', 'BCaBA'])
+            .order('last_name')
     ]);
     clients = clientsRes.data || [];
     payers = payersRes.data || [];
+    bcbas = bcbasRes.data || [];
 
     for (const p of payers) {
         document.getElementById('filter-payer').innerHTML += `<option value="${p.id}">${p.name}</option>`;
@@ -302,6 +309,10 @@ function renderRequestCard(a) {
                 <div>${a.request_submission_method || '—'}</div>
             </div>
             <div>
+                <div class="text-xs text-muted">BCBA</div>
+                <div>${getBCBAName(a.requesting_bcba_id)}${a.requesting_bcba_npi ? '<div class="text-xs font-mono text-muted">NPI: ' + a.requesting_bcba_npi + '</div>' : ''}</div>
+            </div>
+            <div>
                 <div class="text-xs text-muted">Rep</div>
                 <div>${a.request_representative || '—'}</div>
             </div>
@@ -428,6 +439,20 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
         `<option value="${p.id}" ${auth?.payer_id === p.id ? 'selected' : ''}>${p.name}</option>`
     ).join('');
 
+    // BCBAs with NPI (can be listed on an auth)
+    const eligibleBCBAs = bcbas.filter(b => b.npi);
+    const bcbasWithoutNpi = bcbas.filter(b => !b.npi);
+    const bcbaOpts = eligibleBCBAs.map(b => {
+        const cred = b.credential || '';
+        const label = `${b.last_name}, ${b.first_name} (${cred}) — NPI ${b.npi}`;
+        return `<option value="${b.id}" data-npi="${b.npi || ''}" ${auth?.requesting_bcba_id === b.id ? 'selected' : ''}>${label}</option>`;
+    }).join('');
+
+    // Warning line if some BCBAs don't have NPI set
+    const noNpiWarning = bcbasWithoutNpi.length > 0
+        ? `<div class="text-xs text-warning mt-1">⚠️ ${bcbasWithoutNpi.length} BCBA${bcbasWithoutNpi.length > 1 ? 's are' : ' is'} hidden because they don't have an NPI on file: ${bcbasWithoutNpi.map(b => b.first_name + ' ' + b.last_name).join(', ')}. Add their NPI on the Staff page to use them.</div>`
+        : '';
+
     const title = isApprovalMode ? '✓ Record Auth Approval' :
                   isRequestMode && isEdit ? 'Edit Auth Request' :
                   isRequestMode && prefillOnly ? '📞 Request Auth (from Benefits Verification)' :
@@ -504,6 +529,20 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
                     <input class="form-input" name="cpt_codes" value="${(auth?.cpt_codes || []).join(', ')}" placeholder="e.g. 97153, 97155">
                 </div>
             </div>
+            <div class="form-row">
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label class="form-label">Requesting BCBA *</label>
+                    <select class="form-select" name="requesting_bcba_id" id="bcba-select" required>
+                        <option value="">— Select BCBA —</option>
+                        ${bcbaOpts}
+                    </select>
+                    <div class="flex gap-1 mt-1" style="align-items:center;">
+                        <span class="text-xs text-muted">NPI:</span>
+                        <input class="form-input" type="text" id="bcba-npi-display" readonly value="${auth?.requesting_bcba_npi || ''}" placeholder="Auto-filled from BCBA selection" style="background:#f9f9f9;font-family:var(--font-mono);flex:1;max-width:200px;">
+                    </div>
+                    ${noNpiWarning}
+                </div>
+            </div>
             <div class="form-group">
                 <label class="form-label">Request Notes</label>
                 <textarea class="form-textarea" name="request_notes" rows="3" placeholder="Anything from the call — who we spoke to, what docs they asked for, etc.">${auth?.request_notes || ''}</textarea>
@@ -572,6 +611,20 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
                     <label class="form-label">CPT Codes (comma-separated)</label>
                     <input class="form-input" name="cpt_codes_approval" value="${(auth?.cpt_codes || []).join(', ')}" placeholder="e.g. 97153, 97155">
                 </div>
+                <div class="form-row">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label class="form-label">Requesting BCBA *</label>
+                        <select class="form-select" name="requesting_bcba_id_existing" required>
+                            <option value="">— Select BCBA —</option>
+                            ${bcbaOpts}
+                        </select>
+                        <div class="flex gap-1 mt-1" style="align-items:center;">
+                            <span class="text-xs text-muted">NPI:</span>
+                            <input class="form-input" type="text" id="bcba-npi-display-existing" readonly value="${auth?.requesting_bcba_npi || ''}" placeholder="Auto-filled" style="background:#f9f9f9;font-family:var(--font-mono);flex:1;max-width:200px;">
+                        </div>
+                        ${noNpiWarning}
+                    </div>
+                </div>
             ` : ''}
             <div class="form-group">
                 <label class="form-label">Decision Notes</label>
@@ -603,6 +656,25 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
 
     createModal('auth-modal', title, bodyHTML, footerHTML, 'modal-lg');
     openModal('auth-modal');
+
+    // Auto-fill NPI when BCBA is selected (request mode)
+    const bcbaSelect = document.getElementById('bcba-select');
+    if (bcbaSelect) {
+        bcbaSelect.addEventListener('change', (e) => {
+            const opt = e.target.selectedOptions[0];
+            document.getElementById('bcba-npi-display').value = opt?.dataset?.npi || '';
+        });
+    }
+    // Same for existing-mode
+    const bcbaSelectExisting = document.querySelector('[name="requesting_bcba_id_existing"]');
+    if (bcbaSelectExisting) {
+        // Pre-select if auth already has a BCBA
+        if (auth?.requesting_bcba_id) bcbaSelectExisting.value = auth.requesting_bcba_id;
+        bcbaSelectExisting.addEventListener('change', (e) => {
+            const opt = e.target.selectedOptions[0];
+            document.getElementById('bcba-npi-display-existing').value = opt?.dataset?.npi || '';
+        });
+    }
 
     document.getElementById('auth-cancel').addEventListener('click', () => closeModal('auth-modal'));
 
@@ -642,6 +714,24 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
 
             const cptReq = (fd.get('cpt_codes') || '').trim();
             if (cptReq) record.cpt_codes = cptReq.split(',').map(c => c.trim()).filter(Boolean);
+
+            // BCBA requirement
+            const bcbaId = fd.get('requesting_bcba_id');
+            if (!bcbaId) {
+                showToast('A requesting BCBA is required on all auth requests.', 'error');
+                return;
+            }
+            const bcba = bcbas.find(b => b.id === bcbaId);
+            if (!bcba) {
+                showToast('Selected BCBA not found.', 'error');
+                return;
+            }
+            if (!bcba.npi) {
+                showToast('Selected BCBA has no NPI on file. Add it on the Staff page first.', 'error');
+                return;
+            }
+            record.requesting_bcba_id = bcbaId;
+            record.requesting_bcba_npi = bcba.npi;
         }
 
         // Approval fields
@@ -663,6 +753,21 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
             if (isExistingMode) {
                 const cptApp = (fd.get('cpt_codes_approval') || '').trim();
                 if (cptApp) record.cpt_codes = cptApp.split(',').map(c => c.trim()).filter(Boolean);
+
+                // BCBA required in existing mode too
+                const bcbaIdExisting = fd.get('requesting_bcba_id_existing');
+                if (!bcbaIdExisting) {
+                    showToast('A requesting BCBA is required.', 'error');
+                    return;
+                }
+                const bcbaEx = bcbas.find(b => b.id === bcbaIdExisting);
+                if (!bcbaEx) { showToast('Selected BCBA not found.', 'error'); return; }
+                if (!bcbaEx.npi) {
+                    showToast('Selected BCBA has no NPI on file. Add it on the Staff page first.', 'error');
+                    return;
+                }
+                record.requesting_bcba_id = bcbaIdExisting;
+                record.requesting_bcba_npi = bcbaEx.npi;
             }
         } else if (isRequestMode) {
             // If editing a request, keep status as 'requested' unless already in_review
@@ -709,6 +814,12 @@ function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
 function escapeHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function getBCBAName(bcbaId) {
+    if (!bcbaId) return '—';
+    const b = bcbas.find(x => x.id === bcbaId);
+    return b ? `${b.first_name} ${b.last_name}` : '—';
 }
 
 init();

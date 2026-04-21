@@ -33,9 +33,9 @@ exports.handler = async (event) => {
             'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
         };
 
-        // Load auth + client info
+        // Load auth + client info + BCBA info
         const res = await fetch(
-            `${SUPABASE_URL}/rest/v1/authorizations?id=eq.${authorization_id}&select=*,clients(id,cr_client_id,first_name,last_name,date_of_birth,insurance_member_id),insurance_payers(name)`,
+            `${SUPABASE_URL}/rest/v1/authorizations?id=eq.${authorization_id}&select=*,clients(id,cr_client_id,first_name,last_name,date_of_birth,insurance_member_id),insurance_payers(name),requesting_bcba:staff!authorizations_requesting_bcba_id_fkey(id,first_name,last_name,credential,npi,email)`,
             { headers: supabaseHeaders }
         );
         const list = await res.json();
@@ -69,6 +69,14 @@ exports.handler = async (event) => {
             requestRepresentativeId: auth.request_representative_id,
             requestFollowUpDate: auth.request_follow_up_date,
             requestNotes: auth.request_notes,
+
+            // Requesting BCBA (required on every auth request)
+            requestingBcbaId: auth.requesting_bcba_id,
+            requestingBcbaNpi: auth.requesting_bcba_npi,
+            requestingBcbaFirstName: auth.requesting_bcba?.first_name || null,
+            requestingBcbaLastName: auth.requesting_bcba?.last_name || null,
+            requestingBcbaCredential: auth.requesting_bcba?.credential || null,
+            requestingBcbaEmail: auth.requesting_bcba?.email || null,
 
             // Decision info (populated when approved/denied)
             decisionDate: auth.decision_date,
