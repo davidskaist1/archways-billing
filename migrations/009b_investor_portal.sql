@@ -1,11 +1,11 @@
 -- ============================================
--- Migration 009: Investor Portal
--- Adds investor role, financial tracking tables,
--- and aggregated views
+-- Migration 009b: Investor Portal
+-- Tables, views, RLS, functions
+--
+-- IMPORTANT: Run migration 009a FIRST (the ALTER TYPE enum).
+-- Postgres requires the ALTER TYPE ADD VALUE to be committed
+-- before it can be used in other statements.
 -- ============================================
-
--- Add investor role to the enum
-ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'investor';
 
 -- ============================================
 -- TABLES
