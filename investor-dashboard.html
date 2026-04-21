@@ -45,6 +45,41 @@
                 </div>
             </div>
 
+            <!-- Last Billing Cycle -->
+            <div class="card mb-3">
+                <div class="flex-between mb-2">
+                    <h3>Last Billing Cycle</h3>
+                    <select class="form-select" id="cycle-select" style="max-width:200px;">
+                        <option value="14">Last 14 Days</option>
+                        <option value="30" selected>Last 30 Days</option>
+                        <option value="60">Last 60 Days</option>
+                        <option value="90">Last 90 Days</option>
+                    </select>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:24px;">
+                    <div>
+                        <div class="text-xs text-muted">Clients Billed</div>
+                        <div style="font-size:1.5rem;font-weight:700;" id="cycle-clients">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Hours of 97153 (Direct Therapy)</div>
+                        <div style="font-size:1.5rem;font-weight:700;" id="cycle-97153">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Total Hours Billed</div>
+                        <div style="font-size:1.5rem;font-weight:700;" id="cycle-all-hours">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Total Claims</div>
+                        <div style="font-size:1.5rem;font-weight:700;" id="cycle-claims">—</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-muted">Total Billed</div>
+                        <div style="font-size:1.5rem;font-weight:700;" id="cycle-billed">—</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Business snapshot -->
             <div class="card mb-3">
                 <h3 class="mb-2">Business Snapshot</h3>
@@ -64,10 +99,6 @@
                     <div>
                         <div class="text-xs text-muted">Capital Raised</div>
                         <div style="font-size:1.3rem;font-weight:700;" id="snap-capital">—</div>
-                    </div>
-                    <div>
-                        <div class="text-xs text-muted">Distributions Paid</div>
-                        <div style="font-size:1.3rem;font-weight:700;" id="snap-distributions">—</div>
                     </div>
                 </div>
             </div>

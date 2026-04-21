@@ -7,114 +7,238 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .pf-section { margin-bottom: 20px; }
+        .pf-section-header {
+            cursor: pointer;
+            padding: 10px 14px;
+            background: var(--color-bg);
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .pf-section-header:hover { background: var(--color-border); }
+        .pf-section-body {
+            padding: 14px;
+            border: 1px solid var(--color-border);
+            border-top: none;
+            border-radius: 0 0 var(--radius-md) var(--radius-md);
+        }
+        .pf-section.collapsed .pf-section-body { display: none; }
+        .pf-row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; align-items: center; padding: 6px 0; }
+        .pf-row:not(:last-child) { border-bottom: 1px dashed var(--color-border); }
+        .pf-label { font-size: 0.85rem; }
+        .pf-label .text-xs { display: block; color: var(--color-text-muted); margin-top: 2px; }
+        .pf-input { padding: 6px 10px; font-size: 0.85rem; font-family: var(--font-mono); text-align: right; }
+        .chevron { transition: transform 0.2s; font-size: 0.8rem; }
+        .pf-section.collapsed .chevron { transform: rotate(-90deg); }
+    </style>
 </head>
 <body>
     <div class="app-layout">
         <main class="main-content" id="main-content">
             <div class="page-header">
-                <h1>Pro Forma / What-If Calculator</h1>
+                <div>
+                    <h1>Pro Forma / What-If Calculator</h1>
+                    <p class="text-sm text-muted" id="pf-subtitle"></p>
+                </div>
                 <div class="page-actions">
-                    <button class="btn btn-secondary" id="export-btn">📊 Export</button>
+                    <button class="btn btn-secondary" id="export-btn">📊 Export to Excel</button>
                     <button class="btn btn-secondary" id="save-btn">💾 Save Scenario</button>
-                    <button class="btn btn-primary" id="reset-btn">Reset to Current</button>
+                    <button class="btn btn-secondary" id="load-default-btn">↺ Load MO Pro Forma</button>
                 </div>
             </div>
 
-            <p class="text-sm text-muted mb-3">Tweak the assumptions below to see how changes to client count, hours, rates, and costs flow through to monthly profit. Save scenarios to compare them later.</p>
+            <p class="text-sm text-muted mb-3">
+                This is your MO Pro Forma baked into the app. Every field is editable — tweak assumptions to see how they flow through to revenue, costs, and profit. Save named scenarios to compare.
+            </p>
 
-            <div class="grid-2 gap-lg" style="grid-template-columns: 400px 1fr; align-items: start;">
-                <!-- Input Panel -->
-                <div class="card">
-                    <h3 class="mb-2">Assumptions</h3>
+            <div class="grid-2 gap-lg" style="grid-template-columns: 500px 1fr; align-items: start;">
+                <!-- INPUTS -->
+                <div>
 
-                    <h4 style="font-size:0.85rem;" class="mb-1 text-muted">REVENUE</h4>
-                    <div class="form-group">
-                        <label class="form-label">Active Clients</label>
-                        <input class="form-input pf-input" type="number" id="pf-clients" value="20" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Avg Billable Hours per Client / Week</label>
-                        <input class="form-input pf-input" type="number" step="0.5" id="pf-hours-per-client" value="20">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Avg Billed Rate per Hour</label>
-                        <input class="form-input pf-input" type="number" step="0.01" id="pf-billed-rate" value="120">
-                        <span class="text-xs text-muted">Weighted average across CPT codes</span>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Collection Rate (%)</label>
-                        <input class="form-input pf-input" type="number" step="0.1" id="pf-collection-rate" value="92">
-                        <span class="text-xs text-muted">% of billed that actually collects</span>
+                    <!-- RATES -->
+                    <div class="pf-section" data-section="rates">
+                        <div class="pf-section-header"><span>💵 Rates & Billing</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">MO Medicaid Rate / 15-min Unit<span class="text-xs">$ per unit of direct therapy</span></div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="medicaid_rate_15min"></div>
+                            <div class="pf-row"><div class="pf-label">MO In-Network Commercial Rate / 15-min</div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="in_network_rate_15min"></div>
+                            <div class="pf-row"><div class="pf-label">OON Rate / 15-min Unit</div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="oon_rate_15min"></div>
+                            <div class="pf-row"><div class="pf-label">Deductible Expense / Resident<span class="text-xs">Avg deductible write-off per OON client</span></div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="deductible_per_resident"></div>
+                        </div>
                     </div>
 
-                    <hr style="border:none;border-top:1px solid var(--color-border);margin:16px 0;">
+                    <!-- RBT -->
+                    <div class="pf-section" data-section="rbt">
+                        <div class="pf-section-header"><span>👤 RBT / Direct Therapy</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">Day-One Residents</div><input class="form-input pf-input pf-field" type="number" step="1" data-key="day_one_residents"></div>
+                            <div class="pf-row"><div class="pf-label">Medicaid Split (%)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="medicaid_split"></div>
+                            <div class="pf-row"><div class="pf-label">In-Network Commercial Split (%)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="in_network_split"></div>
+                            <div class="pf-row"><div class="pf-label">OON Commercial Split (%)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="oon_split"></div>
+                            <div class="pf-row"><div class="pf-label">Avg Hours / Resident / Week</div><input class="form-input pf-input pf-field" type="number" step="0.25" data-key="avg_hours_per_resident_week"></div>
+                        </div>
+                    </div>
 
-                    <h4 style="font-size:0.85rem;" class="mb-1 text-muted">COSTS</h4>
-                    <div class="form-group">
-                        <label class="form-label">Avg Staff Hourly Rate</label>
-                        <input class="form-input pf-input" type="number" step="0.01" id="pf-staff-rate" value="35">
-                        <span class="text-xs text-muted">What we pay RBTs/BCBAs</span>
+                    <!-- BCBA -->
+                    <div class="pf-section" data-section="bcba">
+                        <div class="pf-section-header"><span>🎓 BCBA / Supervision</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">6-Month Assessment Hours</div><input class="form-input pf-input pf-field" type="number" step="0.5" data-key="assessment_hours_6month"></div>
+                            <div class="pf-row"><div class="pf-label">Assessment Rate / Hour</div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="assessment_rate_per_hour"></div>
+                            <div class="pf-row"><div class="pf-label">Weekly Supervision Hours / Client</div><input class="form-input pf-input pf-field" type="number" step="0.5" data-key="supervision_hours_per_week"></div>
+                            <div class="pf-row"><div class="pf-label">Supervision Rate / Hour</div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="supervision_rate_per_hour"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Staff Utilization (%)</label>
-                        <input class="form-input pf-input" type="number" step="0.1" id="pf-utilization" value="80">
-                        <span class="text-xs text-muted">% of paid hours that are billable</span>
+
+                    <!-- DIRECT LABOR -->
+                    <div class="pf-section" data-section="labor">
+                        <div class="pf-section-header"><span>💼 Direct Labor Costs</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">RBT Hourly Rate (incl. fringe)</div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="rbt_hourly_rate"></div>
+                            <div class="pf-row"><div class="pf-label">BCBA Hourly Rate (incl. fringe)</div><input class="form-input pf-input pf-field" type="number" step="0.01" data-key="bcba_hourly_rate"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Payroll Tax & Benefits (%)</label>
-                        <input class="form-input pf-input" type="number" step="0.1" id="pf-payroll-tax" value="15">
-                        <span class="text-xs text-muted">On top of gross wages</span>
+
+                    <!-- GROWTH -->
+                    <div class="pf-section" data-section="growth">
+                        <div class="pf-section-header"><span>📈 Growth & Ramp</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">First Resident (Month #)</div><input class="form-input pf-input pf-field" type="number" step="1" data-key="first_resident_month"></div>
+                            <div class="pf-row"><div class="pf-label">Beginning Net Growth / Month</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="beginning_net_growth_month"></div>
+                            <div class="pf-row"><div class="pf-label">Ramp Until Month #</div><input class="form-input pf-input pf-field" type="number" step="1" data-key="ramp_until_month"></div>
+                            <div class="pf-row"><div class="pf-label">Stabilized Net Growth / Month</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="stabilized_net_growth_month"></div>
+                            <div class="pf-row"><div class="pf-label">Client Max (cap)</div><input class="form-input pf-input pf-field" type="number" step="1" data-key="client_max"></div>
+                            <div class="pf-row"><div class="pf-label">Revenue Growth Rate (annual %)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="revenue_growth_rate"></div>
+                            <div class="pf-row"><div class="pf-label">Expense Growth Rate (annual %)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="expense_growth_rate"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Monthly Fixed Operating Costs</label>
-                        <input class="form-input pf-input" type="number" step="0.01" id="pf-fixed-opex" value="8000">
-                        <span class="text-xs text-muted">Rent, software, insurance, etc.</span>
+
+                    <!-- ADMIN SALARIES -->
+                    <div class="pf-section collapsed" data-section="admin">
+                        <div class="pf-section-header"><span>👔 Admin / Overhead Salaries (Annual)</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">CEO</div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="ceo_salary_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Chief Clinical Director (QA)<span class="text-xs">Starts at 30 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="clinical_director_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Director of Intake<span class="text-xs">Starts at 10 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="director_intake_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Director of Compliance<span class="text-xs">Starts at 30 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="director_compliance_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Director of Care Management<span class="text-xs">Starts at 10 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="director_care_mgmt_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Director of HR<span class="text-xs">Starts at 30 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="director_hr_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Recruiter<span class="text-xs">Starts at 10 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="recruiter_annual"></div>
+                            <div class="pf-row"><div class="pf-label">State Director<span class="text-xs">Starts at 50 clients</span></div><input class="form-input pf-input pf-field" type="number" step="1000" data-key="state_director_annual"></div>
+                            <div class="pf-row"><div class="pf-label">Overseas Assistant / Month<span class="text-xs">One day-one FTE</span></div><input class="form-input pf-input pf-field" type="number" step="100" data-key="overseas_assistant_monthly"></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Variable OpEx (% of revenue)</label>
-                        <input class="form-input pf-input" type="number" step="0.1" id="pf-variable-opex" value="3">
+
+                    <!-- NON-LABOR -->
+                    <div class="pf-section collapsed" data-section="nonlabor">
+                        <div class="pf-section-header"><span>🧾 Non-Labor Costs (Monthly at stabilization)</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">Central Reach / Employee / Month</div><input class="form-input pf-input pf-field" type="number" step="1" data-key="central_reach_per_employee"></div>
+                            <div class="pf-row"><div class="pf-label">Brellium / 30 Clients<span class="text-xs">Scales per 30 clients</span></div><input class="form-input pf-input pf-field" type="number" step="50" data-key="brellium_per_30_clients"></div>
+                            <div class="pf-row"><div class="pf-label">Leadtrap AI Chatbot</div><input class="form-input pf-input pf-field" type="number" step="50" data-key="leadtrap_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Marketing Company</div><input class="form-input pf-input pf-field" type="number" step="500" data-key="marketing_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Digital Advertising</div><input class="form-input pf-input pf-field" type="number" step="500" data-key="advertising_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Liability Insurance</div><input class="form-input pf-input pf-field" type="number" step="10" data-key="liability_insurance_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Indeed (recruiting ads)</div><input class="form-input pf-input pf-field" type="number" step="100" data-key="indeed_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Apploi</div><input class="form-input pf-input pf-field" type="number" step="50" data-key="apploi_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">IT / Phone</div><input class="form-input pf-input pf-field" type="number" step="50" data-key="it_phone_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Legal</div><input class="form-input pf-input pf-field" type="number" step="50" data-key="legal_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Accounting</div><input class="form-input pf-input pf-field" type="number" step="50" data-key="accounting_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Payroll Software</div><input class="form-input pf-input pf-field" type="number" step="50" data-key="payroll_software_monthly"></div>
+                            <div class="pf-row"><div class="pf-label">Medical Billing (% of revenue)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="medical_billing_pct_revenue"></div>
+                            <div class="pf-row"><div class="pf-label">Bad Debt (% of revenue)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="bad_debt_pct_revenue"></div>
+                        </div>
                     </div>
+
+                    <!-- STARTUP -->
+                    <div class="pf-section collapsed" data-section="startup">
+                        <div class="pf-section-header"><span>🚀 Startup Costs (One-time)</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">Legal (entity formation, contracts)</div><input class="form-input pf-input pf-field" type="number" step="500" data-key="startup_legal"></div>
+                            <div class="pf-row"><div class="pf-label">Tech / IT Setup</div><input class="form-input pf-input pf-field" type="number" step="500" data-key="startup_tech_it"></div>
+                            <div class="pf-row"><div class="pf-label">Initial Software Licenses</div><input class="form-input pf-input pf-field" type="number" step="500" data-key="startup_software"></div>
+                            <div class="pf-row"><div class="pf-label">Initial Marketing</div><input class="form-input pf-input pf-field" type="number" step="500" data-key="startup_marketing"></div>
+                            <div class="pf-row"><div class="pf-label">Initial Salaries (pre-revenue)</div><input class="form-invest pf-input pf-field" type="number" step="500" data-key="startup_salaries"></div>
+                        </div>
+                    </div>
+
+                    <!-- OTHER -->
+                    <div class="pf-section collapsed" data-section="other">
+                        <div class="pf-section-header"><span>⚙️ Other Assumptions</span><span class="chevron">▼</span></div>
+                        <div class="pf-section-body">
+                            <div class="pf-row"><div class="pf-label">Cash Lag (days)<span class="text-xs">Days from service to payment</span></div><input class="form-input pf-input pf-field" type="number" step="1" data-key="cash_lag_days"></div>
+                            <div class="pf-row"><div class="pf-label">Start-Up Lag (months)<span class="text-xs">Months before first billing</span></div><input class="form-input pf-input pf-field" type="number" step="1" data-key="start_up_lag_months"></div>
+                            <div class="pf-row"><div class="pf-label">Exit Year</div><input class="form-input pf-input pf-field" type="number" step="1" data-key="exit_year"></div>
+                            <div class="pf-row"><div class="pf-label">Exit EBITDA Multiple</div><input class="form-input pf-input pf-field" type="number" step="0.25" data-key="exit_multiple"></div>
+                            <div class="pf-row"><div class="pf-label">Pref Rate (investor return, %)</div><input class="form-input pf-input pf-field" type="number" step="0.1" data-key="pref_rate"></div>
+                        </div>
+                    </div>
+
                 </div>
 
-                <!-- Output Panel -->
+                <!-- OUTPUTS -->
                 <div>
                     <div class="kpi-grid">
                         <div class="kpi-card kpi-success">
-                            <div class="kpi-label">Monthly Revenue</div>
+                            <div class="kpi-label">Stabilized Monthly Revenue</div>
                             <div class="kpi-value" id="out-revenue">$0</div>
                             <div class="kpi-sub" id="out-revenue-sub"></div>
                         </div>
                         <div class="kpi-card">
-                            <div class="kpi-label">Monthly Costs</div>
+                            <div class="kpi-label">Stabilized Monthly Costs</div>
                             <div class="kpi-value" id="out-costs">$0</div>
                             <div class="kpi-sub" id="out-costs-sub"></div>
                         </div>
                         <div class="kpi-card" id="profit-card">
-                            <div class="kpi-label">Monthly Net Profit</div>
+                            <div class="kpi-label">Stabilized Monthly EBITDA</div>
                             <div class="kpi-value" id="out-profit">$0</div>
                             <div class="kpi-sub" id="out-margin"></div>
                         </div>
                         <div class="kpi-card kpi-warning">
                             <div class="kpi-label">Break-Even Clients</div>
                             <div class="kpi-value" id="out-breakeven">—</div>
-                            <div class="kpi-sub">At current assumptions</div>
+                            <div class="kpi-sub">Clients needed to cover costs</div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">Total Startup Investment</div>
+                            <div class="kpi-value" id="out-startup">$0</div>
+                            <div class="kpi-sub">One-time costs</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Annual Revenue (Stabilized)</div>
+                            <div class="kpi-value" id="out-annual-revenue">$0</div>
+                        </div>
+                        <div class="kpi-card kpi-success">
+                            <div class="kpi-label">Annual EBITDA (Stabilized)</div>
+                            <div class="kpi-value" id="out-annual-ebitda">$0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Est. Exit Value</div>
+                            <div class="kpi-value" id="out-exit-value">$0</div>
+                            <div class="kpi-sub" id="out-exit-sub"></div>
                         </div>
                     </div>
 
                     <div class="card mb-3">
-                        <h3 class="mb-2">Cost Breakdown</h3>
-                        <canvas id="cost-chart" height="80"></canvas>
+                        <h3 class="mb-2">10-Year Projection</h3>
+                        <canvas id="projection-chart" height="80"></canvas>
                     </div>
 
                     <div class="card mb-3">
-                        <h3 class="mb-2">Annual Projection</h3>
+                        <h3 class="mb-2">Annual P&L Summary</h3>
                         <div id="annual-table"></div>
                     </div>
 
                     <div class="card">
-                        <h3 class="mb-2">Sensitivity Analysis</h3>
-                        <p class="text-sm text-muted mb-2">How monthly profit changes if you move one dial at a time:</p>
-                        <div id="sensitivity-table"></div>
+                        <h3 class="mb-2">Stabilized Cost Breakdown</h3>
+                        <canvas id="cost-breakdown-chart" height="100"></canvas>
                     </div>
                 </div>
             </div>

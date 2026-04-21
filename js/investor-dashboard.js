@@ -1,6 +1,7 @@
 import { requireAuth, getCurrentStaff } from './auth.js';
 import { renderNav } from './nav.js';
 import { DataTable } from './ui.js';
+import { supabase } from './supabase-client.js';
 import {
     getBusinessSnapshot, getMonthlyFinancials, getARLagMonthly,
     calculatePL, exportToExcel, fmtMoney, fmtPercent, fmtMonth, fmtInt
@@ -22,6 +23,21 @@ async function init() {
     await loadAll();
 
     document.getElementById('export-btn').addEventListener('click', exportData);
+    document.getElementById('cycle-select').addEventListener('change', loadCycleMetrics);
+}
+
+async function loadCycleMetrics() {
+    const days = parseInt(document.getElementById('cycle-select').value) || 30;
+    const { data, error } = await supabase.rpc('get_cycle_metrics', { days_back: days });
+    if (error) return;
+    const m = Array.isArray(data) ? data[0] : data;
+    if (!m) return;
+
+    document.getElementById('cycle-clients').textContent = fmtInt(m.clients_billed);
+    document.getElementById('cycle-97153').textContent = parseFloat(m.total_hours_97153).toFixed(1);
+    document.getElementById('cycle-all-hours').textContent = parseFloat(m.total_hours_all).toFixed(1);
+    document.getElementById('cycle-claims').textContent = fmtInt(m.total_claims);
+    document.getElementById('cycle-billed').textContent = fmtMoney(m.total_billed);
 }
 
 async function loadAll() {
@@ -33,6 +49,7 @@ async function loadAll() {
     renderSnapshot();
     renderTrendChart();
     renderPLTable();
+    await loadCycleMetrics();
 }
 
 function renderKPIs(arLagData) {
@@ -71,7 +88,6 @@ function renderSnapshot() {
     document.getElementById('snap-active-clients').textContent = fmtInt(snapshot.active_clients);
     document.getElementById('snap-active-staff').textContent = fmtInt(snapshot.active_staff);
     document.getElementById('snap-capital').textContent = fmtMoney(snapshot.total_capital_raised);
-    document.getElementById('snap-distributions').textContent = fmtMoney(snapshot.total_distributions);
 }
 
 function renderTrendChart() {

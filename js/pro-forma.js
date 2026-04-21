@@ -4,173 +4,441 @@ import { supabase } from './supabase-client.js';
 import { DataTable, showToast, createModal, openModal, closeModal, confirmDialog } from './ui.js';
 import { exportToExcel, fmtMoney, fmtPercent, fmtInt } from './investor-helpers.js';
 
-const INPUT_IDS = [
-    'pf-clients', 'pf-hours-per-client', 'pf-billed-rate', 'pf-collection-rate',
-    'pf-staff-rate', 'pf-utilization', 'pf-payroll-tax',
-    'pf-fixed-opex', 'pf-variable-opex'
-];
-
 const DEFAULTS = {
-    'pf-clients': 20,
-    'pf-hours-per-client': 20,
-    'pf-billed-rate': 120,
-    'pf-collection-rate': 92,
-    'pf-staff-rate': 35,
-    'pf-utilization': 80,
-    'pf-payroll-tax': 15,
-    'pf-fixed-opex': 8000,
-    'pf-variable-opex': 3
+    // Rates
+    medicaid_rate_15min: 65.48,
+    in_network_rate_15min: 0,
+    oon_rate_15min: 150,
+    deductible_per_resident: 5000,
+    // RBT
+    day_one_residents: 0,
+    medicaid_split: 100,
+    in_network_split: 0,
+    oon_split: 0,
+    avg_hours_per_resident_week: 14,
+    // BCBA
+    assessment_hours_6month: 8,
+    assessment_rate_per_hour: 101.04,
+    supervision_hours_per_week: 2,
+    supervision_rate_per_hour: 101.04,
+    // Labor
+    rbt_hourly_rate: 27,
+    bcba_hourly_rate: 95,
+    // Growth
+    first_resident_month: 3,
+    beginning_net_growth_month: 4.5,
+    ramp_until_month: 4,
+    stabilized_net_growth_month: 4.5,
+    client_max: 250,
+    revenue_growth_rate: 2,
+    expense_growth_rate: 2,
+    // Admin salaries (annual)
+    ceo_salary_annual: 250000,
+    clinical_director_annual: 150000,
+    director_intake_annual: 100000,
+    director_compliance_annual: 90000,
+    director_care_mgmt_annual: 90000,
+    director_hr_annual: 150000,
+    recruiter_annual: 75000,
+    state_director_annual: 150000,
+    overseas_assistant_monthly: 2500,
+    // Non-labor monthly
+    central_reach_per_employee: 90,
+    brellium_per_30_clients: 1800,
+    leadtrap_monthly: 800,
+    marketing_monthly: 10000,
+    advertising_monthly: 10000,
+    liability_insurance_monthly: 166.67,
+    indeed_monthly: 2500,
+    apploi_monthly: 833.33,
+    it_phone_monthly: 1250,
+    legal_monthly: 833.33,
+    accounting_monthly: 500,
+    payroll_software_monthly: 833.33,
+    medical_billing_pct_revenue: 6,
+    bad_debt_pct_revenue: 1,
+    // Other
+    cash_lag_days: 45,
+    start_up_lag_months: 3,
+    // Startup
+    startup_legal: 10000,
+    startup_tech_it: 5000,
+    startup_software: 3000,
+    startup_marketing: 30000,
+    startup_salaries: 100000,
+    // Exit
+    exit_multiple: 4,
+    exit_year: 8,
+    pref_rate: 10
 };
 
-let costChart;
+let projectionChart, costBreakdownChart;
 
 async function init() {
     const auth = await requireAuth(['admin', 'investor']);
     if (!auth) return;
     renderNav();
 
-    // Wire up inputs
-    INPUT_IDS.forEach(id => {
-        document.getElementById(id).addEventListener('input', calculate);
+    // Set up collapsible sections
+    document.querySelectorAll('.pf-section-header').forEach(h => {
+        h.addEventListener('click', () => h.parentElement.classList.toggle('collapsed'));
     });
 
-    document.getElementById('reset-btn').addEventListener('click', resetDefaults);
+    // Wire up all inputs
+    document.querySelectorAll('.pf-field').forEach(el => {
+        el.addEventListener('input', () => recalculate());
+    });
+
     document.getElementById('save-btn').addEventListener('click', saveScenario);
+    document.getElementById('load-default-btn').addEventListener('click', loadDefaultScenario);
     document.getElementById('export-btn').addEventListener('click', exportData);
 
-    await loadCurrent();
-    calculate();
+    // Load the default (MO Pro Forma) scenario if present
+    await loadDefaultScenario(true);
+    recalculate();
     await loadScenarios();
 }
 
-async function loadCurrent() {
-    // Try to pre-fill from actual recent data if the user is admin
-    const user = getCurrentStaff();
-    if (user.role !== 'admin') return;
-
-    try {
-        // Active clients
-        const { count: clientCount } = await supabase.from('clients').select('*', { count: 'exact', head: true }).eq('is_active', true);
-        if (clientCount) document.getElementById('pf-clients').value = clientCount;
-
-        // Staff avg rate (if we have data)
-        const { data: staff } = await supabase.from('staff').select('hourly_rate').eq('is_active', true).not('hourly_rate', 'is', null);
-        if (staff && staff.length > 0) {
-            const avg = staff.reduce((s, x) => s + parseFloat(x.hourly_rate), 0) / staff.length;
-            if (avg > 0) document.getElementById('pf-staff-rate').value = avg.toFixed(2);
-        }
-
-        // Fixed opex from monthly recurring expenses
-        const { data: expenses } = await supabase.from('operating_expenses')
-            .select('amount, recurrence_frequency, is_recurring').eq('is_recurring', true);
-        if (expenses && expenses.length > 0) {
-            let monthly = 0;
-            for (const e of expenses) {
-                const amt = parseFloat(e.amount);
-                if (e.recurrence_frequency === 'monthly') monthly += amt;
-                else if (e.recurrence_frequency === 'quarterly') monthly += amt / 3;
-                else if (e.recurrence_frequency === 'annually') monthly += amt / 12;
-            }
-            if (monthly > 0) document.getElementById('pf-fixed-opex').value = monthly.toFixed(0);
-        }
-    } catch {}
+function setInputs(values) {
+    for (const [key, val] of Object.entries(values)) {
+        const el = document.querySelector(`.pf-field[data-key="${key}"]`);
+        if (el) el.value = val;
+    }
 }
 
 function getInputs() {
-    return Object.fromEntries(
-        INPUT_IDS.map(id => [id, parseFloat(document.getElementById(id).value) || 0])
-    );
+    const out = {};
+    document.querySelectorAll('.pf-field').forEach(el => {
+        out[el.dataset.key] = parseFloat(el.value) || 0;
+    });
+    return out;
 }
 
+async function loadDefaultScenario(silent = false) {
+    // Try to load the seeded default from DB, else use DEFAULTS
+    const { data } = await supabase
+        .from('pro_forma_scenarios')
+        .select('assumptions')
+        .eq('is_default', true)
+        .limit(1)
+        .maybeSingle();
+
+    if (data?.assumptions) {
+        setInputs({ ...DEFAULTS, ...data.assumptions });
+    } else {
+        setInputs(DEFAULTS);
+    }
+
+    document.getElementById('pf-subtitle').textContent =
+        'Baseline: MO Pro Forma (Missouri, Medicaid-only, 250 client max)';
+
+    if (!silent) {
+        showToast('MO Pro Forma loaded.', 'success');
+        recalculate();
+    }
+}
+
+// ============================================
+// THE MODEL — runs the ramp projection
+// ============================================
+
 function runModel(inp) {
-    const clients = inp['pf-clients'];
-    const hrsPerClient = inp['pf-hours-per-client'];
-    const billedRate = inp['pf-billed-rate'];
-    const collectionRate = inp['pf-collection-rate'] / 100;
-    const staffRate = inp['pf-staff-rate'];
-    const utilization = inp['pf-utilization'] / 100;
-    const payrollTax = inp['pf-payroll-tax'] / 100;
-    const fixedOpex = inp['pf-fixed-opex'];
-    const variableOpex = inp['pf-variable-opex'] / 100;
+    const months = 120; // 10 years
+    const weeks_per_month = 4.333;
 
-    // Weekly billable hours across all clients
-    const weeklyBillableHours = clients * hrsPerClient;
-    const monthlyBillableHours = weeklyBillableHours * 4.33; // weeks per month avg
+    // Client ramp by month
+    const clientsByMonth = [];
+    let clients = inp.day_one_residents;
+    for (let m = 1; m <= months; m++) {
+        if (m >= inp.first_resident_month) {
+            const growth = m <= inp.ramp_until_month
+                ? inp.beginning_net_growth_month
+                : inp.stabilized_net_growth_month;
+            clients = Math.min(clients + growth, inp.client_max);
+        }
+        clientsByMonth.push(clients);
+    }
 
-    // Revenue
-    const billedMonthly = monthlyBillableHours * billedRate;
-    const revenueMonthly = billedMonthly * collectionRate;
+    // Calculate annual (stabilized) figures using the final month
+    const stabClients = inp.client_max;
 
-    // Payroll — to get billable hours, we need staff-paid hours (billable / utilization)
-    const staffPaidHours = utilization > 0 ? monthlyBillableHours / utilization : 0;
-    const grossWages = staffPaidHours * staffRate;
-    const totalPayroll = grossWages * (1 + payrollTax);
+    // Revenue per client (weighted by split)
+    const hoursPerClientMonth = inp.avg_hours_per_resident_week * weeks_per_month;
+    const unitsPerClientMonth = hoursPerClientMonth * 4; // 4 units/hour
 
-    // OpEx
-    const totalVariableOpex = revenueMonthly * variableOpex;
-    const totalOpex = fixedOpex + totalVariableOpex;
+    const revPerUnit =
+        (inp.medicaid_split / 100) * inp.medicaid_rate_15min +
+        (inp.in_network_split / 100) * inp.in_network_rate_15min +
+        (inp.oon_split / 100) * inp.oon_rate_15min;
 
-    // Totals
-    const totalCosts = totalPayroll + totalOpex;
-    const netProfit = revenueMonthly - totalCosts;
-    const marginPct = revenueMonthly > 0 ? (netProfit / revenueMonthly) * 100 : 0;
+    const rbtRevenuePerClientPerMonth = unitsPerClientMonth * revPerUnit;
+
+    // BCBA revenue: assessment + supervision
+    const assessmentsPerYear = 2; // twice a year (6-month)
+    const assessmentHoursPerYear = inp.assessment_hours_6month * assessmentsPerYear;
+    const supervisionHoursPerMonth = inp.supervision_hours_per_week * weeks_per_month;
+    const bcbaRevenuePerClientPerMonth =
+        (assessmentHoursPerYear * inp.assessment_rate_per_hour / 12) +
+        (supervisionHoursPerMonth * inp.supervision_rate_per_hour);
+
+    const revenuePerClientPerMonth = rbtRevenuePerClientPerMonth + bcbaRevenuePerClientPerMonth;
+
+    // Stabilized monthly revenue
+    const stabMonthlyRevenue = stabClients * revenuePerClientPerMonth;
+
+    // Direct labor costs (stabilized)
+    const rbtMonthlyLabor = stabClients * hoursPerClientMonth * inp.rbt_hourly_rate;
+    const bcbaMonthlyHoursTotal = stabClients * (assessmentHoursPerYear / 12 + supervisionHoursPerMonth);
+    const bcbaMonthlyLabor = bcbaMonthlyHoursTotal * inp.bcba_hourly_rate;
+    const stabDirectLabor = rbtMonthlyLabor + bcbaMonthlyLabor;
+
+    // Admin overhead (stabilized — all triggered, assume 250 clients reached)
+    // These are simplified from the pro forma — we use the stabilized annual / 12
+    const adminMonthly =
+        (inp.ceo_salary_annual / 12) +
+        (inp.clinical_director_annual / 12) +
+        (inp.director_intake_annual / 12) +
+        (inp.director_compliance_annual / 12) +
+        (inp.director_care_mgmt_annual / 12) +
+        (inp.director_hr_annual / 12) +
+        (inp.recruiter_annual / 12) +
+        (inp.state_director_annual / 12) +
+        inp.overseas_assistant_monthly +
+        // Scaled roles at 250 clients: assistants triggered per client bucket
+        ((inp.clinical_director_annual * 0.6 / 12) * Math.floor(stabClients / 200)) + // assistant QAs
+        ((inp.director_compliance_annual * 1.4 / 12) * Math.floor(stabClients / 100)) + // asst compliance
+        ((90000 / 12) * Math.floor(stabClients / 40)) + // asst care management (~$90k/year each)
+        ((60000 / 12) * Math.floor(stabClients / 50)) + // asst clinical director
+        ((90000 / 12) * Math.max(1, Math.floor(stabClients / 200))) + // payroll director
+        ((65000 / 12) * Math.max(1, Math.floor(stabClients / 200))); // HR rep
+
+    // Non-labor costs (stabilized)
+    // Estimate headcount for central reach: RBTs (hours_week/30) + BCBAs + admins
+    const rbtHeadcount = Math.ceil(stabClients * inp.avg_hours_per_resident_week / 30);
+    const bcbaHeadcount = Math.ceil(stabClients * (inp.supervision_hours_per_week + inp.assessment_hours_6month / 26) / 30);
+    const totalEmployees = rbtHeadcount + bcbaHeadcount + 25; // ~25 admin
+
+    const nonLaborMonthly =
+        totalEmployees * inp.central_reach_per_employee +
+        inp.brellium_per_30_clients * (stabClients / 30) +
+        inp.leadtrap_monthly +
+        inp.marketing_monthly +
+        inp.advertising_monthly +
+        inp.liability_insurance_monthly +
+        inp.indeed_monthly +
+        inp.apploi_monthly +
+        inp.it_phone_monthly +
+        inp.legal_monthly +
+        inp.accounting_monthly +
+        inp.payroll_software_monthly +
+        stabMonthlyRevenue * (inp.medical_billing_pct_revenue / 100) +
+        stabMonthlyRevenue * (inp.bad_debt_pct_revenue / 100);
+
+    const stabTotalCosts = stabDirectLabor + adminMonthly + nonLaborMonthly;
+    const stabEbitda = stabMonthlyRevenue - stabTotalCosts;
+    const stabMargin = stabMonthlyRevenue > 0 ? (stabEbitda / stabMonthlyRevenue * 100) : 0;
+
+    // Total startup investment
+    const totalStartup =
+        inp.startup_legal + inp.startup_tech_it + inp.startup_software +
+        inp.startup_marketing + inp.startup_salaries;
+
+    // Break-even clients
+    // Fixed portion of costs = admin overhead + non-labor (excluding revenue-variable)
+    const fixedCostsNonVariable = adminMonthly +
+        (totalEmployees * inp.central_reach_per_employee) +
+        inp.brellium_per_30_clients * (stabClients / 30) +
+        inp.leadtrap_monthly + inp.marketing_monthly + inp.advertising_monthly +
+        inp.liability_insurance_monthly + inp.indeed_monthly + inp.apploi_monthly +
+        inp.it_phone_monthly + inp.legal_monthly + inp.accounting_monthly +
+        inp.payroll_software_monthly;
+
+    const grossPerClient = revenuePerClientPerMonth;
+    const variableCostPerClient =
+        hoursPerClientMonth * inp.rbt_hourly_rate +
+        ((assessmentHoursPerYear / 12) + supervisionHoursPerMonth) * inp.bcba_hourly_rate +
+        revenuePerClientPerMonth * ((inp.medical_billing_pct_revenue + inp.bad_debt_pct_revenue) / 100);
+
+    const contributionPerClient = grossPerClient - variableCostPerClient;
+    const breakeven = contributionPerClient > 0 ? Math.ceil(fixedCostsNonVariable / contributionPerClient) : null;
+
+    // Annual projection (year 1-10), ramping
+    const annualYears = [];
+    for (let y = 1; y <= 10; y++) {
+        const startMonth = (y - 1) * 12 + 1;
+        const endMonth = y * 12;
+        let yearRevenue = 0;
+        let yearCosts = 0;
+        let avgClients = 0;
+        let monthsCounted = 0;
+
+        for (let m = startMonth; m <= endMonth && m <= months; m++) {
+            const c = clientsByMonth[m - 1];
+            avgClients += c;
+            monthsCounted++;
+
+            // Scale stabilized metrics by current clients
+            const clientRatio = c / stabClients || 0;
+            const monthRev = c * revenuePerClientPerMonth * Math.pow(1 + inp.revenue_growth_rate / 100, y - 1);
+            const monthDirect = c * (hoursPerClientMonth * inp.rbt_hourly_rate +
+                ((assessmentHoursPerYear / 12) + supervisionHoursPerMonth) * inp.bcba_hourly_rate);
+            // Admin scales roughly with client count for some roles
+            const monthAdmin = adminMonthly * Math.min(1, clientRatio * 1.3);
+            const monthNonLabor = nonLaborMonthly * Math.min(1, 0.3 + clientRatio * 0.7);
+
+            yearRevenue += monthRev;
+            yearCosts += (monthDirect + monthAdmin + monthNonLabor) * Math.pow(1 + inp.expense_growth_rate / 100, y - 1);
+        }
+
+        avgClients = monthsCounted > 0 ? avgClients / monthsCounted : 0;
+        annualYears.push({
+            year: y,
+            avgClients: Math.round(avgClients),
+            revenue: yearRevenue,
+            costs: yearCosts,
+            ebitda: yearRevenue - yearCosts,
+            margin: yearRevenue > 0 ? (yearRevenue - yearCosts) / yearRevenue * 100 : 0
+        });
+    }
+
+    // Exit value
+    const exitYear = Math.min(inp.exit_year, 10);
+    const exitEbitda = annualYears[exitYear - 1]?.ebitda || 0;
+    const exitValue = exitEbitda * inp.exit_multiple;
 
     return {
-        clients, hrsPerClient, billedRate, collectionRate,
-        monthlyBillableHours, billedMonthly, revenueMonthly,
-        staffPaidHours, grossWages, totalPayroll,
-        fixedOpex, totalVariableOpex, totalOpex,
-        totalCosts, netProfit, marginPct
+        stabMonthlyRevenue,
+        stabDirectLabor,
+        adminMonthly,
+        nonLaborMonthly,
+        stabTotalCosts,
+        stabEbitda,
+        stabMargin,
+        totalStartup,
+        breakeven,
+        annualYears,
+        exitYear,
+        exitValue,
+        rbtMonthlyLabor,
+        bcbaMonthlyLabor,
+        clientsByMonth,
+        revenuePerClientPerMonth,
+        rbtHeadcount,
+        bcbaHeadcount,
+        totalEmployees
     };
 }
 
-function calculate() {
+function recalculate() {
     const inp = getInputs();
     const r = runModel(inp);
 
-    document.getElementById('out-revenue').textContent = fmtMoney(r.revenueMonthly);
+    // KPIs
+    document.getElementById('out-revenue').textContent = fmtMoney(r.stabMonthlyRevenue);
     document.getElementById('out-revenue-sub').textContent =
-        `${fmtInt(r.monthlyBillableHours.toFixed(0))} billable hrs · ${fmtMoney(r.billedMonthly)} billed`;
+        `${fmtInt(inp.client_max)} clients × ${fmtMoney(r.revenuePerClientPerMonth)}/mo`;
 
-    document.getElementById('out-costs').textContent = fmtMoney(r.totalCosts);
+    document.getElementById('out-costs').textContent = fmtMoney(r.stabTotalCosts);
     document.getElementById('out-costs-sub').textContent =
-        `Payroll ${fmtMoney(r.totalPayroll)} · OpEx ${fmtMoney(r.totalOpex)}`;
+        `Labor ${fmtMoney(r.stabDirectLabor + r.adminMonthly)} · Other ${fmtMoney(r.nonLaborMonthly)}`;
 
-    const profitEl = document.getElementById('out-profit');
-    profitEl.textContent = fmtMoney(r.netProfit);
-    const card = document.getElementById('profit-card');
-    card.className = 'kpi-card ' + (r.netProfit >= 0 ? 'kpi-success' : 'kpi-danger');
+    const profitCard = document.getElementById('profit-card');
+    profitCard.className = 'kpi-card ' + (r.stabEbitda >= 0 ? 'kpi-success' : 'kpi-danger');
+    document.getElementById('out-profit').textContent = fmtMoney(r.stabEbitda);
+    document.getElementById('out-margin').textContent = `${fmtPercent(r.stabMargin)} margin`;
 
-    document.getElementById('out-margin').textContent = `${fmtPercent(r.marginPct)} margin`;
+    document.getElementById('out-breakeven').textContent = r.breakeven ? r.breakeven : 'N/A';
 
-    // Break-even clients
-    const fixedCosts = r.fixedOpex;
-    const grossPerClientPerMonth = inp['pf-hours-per-client'] * 4.33 * inp['pf-billed-rate'] * (inp['pf-collection-rate'] / 100);
-    const paidHrsPerClient = (inp['pf-utilization'] > 0) ? (inp['pf-hours-per-client'] * 4.33 / (inp['pf-utilization'] / 100)) : 0;
-    const payrollPerClient = paidHrsPerClient * inp['pf-staff-rate'] * (1 + inp['pf-payroll-tax'] / 100);
-    const variableOpexPerClient = grossPerClientPerMonth * (inp['pf-variable-opex'] / 100);
-    const contributionPerClient = grossPerClientPerMonth - payrollPerClient - variableOpexPerClient;
-    const breakeven = contributionPerClient > 0 ? Math.ceil(fixedCosts / contributionPerClient) : null;
-    document.getElementById('out-breakeven').textContent = breakeven ? breakeven : 'N/A';
+    document.getElementById('out-startup').textContent = fmtMoney(r.totalStartup);
+    document.getElementById('out-annual-revenue').textContent = fmtMoney(r.stabMonthlyRevenue * 12);
+    document.getElementById('out-annual-ebitda').textContent = fmtMoney(r.stabEbitda * 12);
+    document.getElementById('out-exit-value').textContent = fmtMoney(r.exitValue);
+    document.getElementById('out-exit-sub').textContent = `Year ${r.exitYear} @ ${inp.exit_multiple}x EBITDA`;
 
-    renderCostChart(r);
+    renderProjectionChart(r);
     renderAnnualTable(r);
-    renderSensitivity(inp, r);
+    renderCostBreakdownChart(r);
 }
 
-function renderCostChart(r) {
-    const ctx = document.getElementById('cost-chart');
-    if (costChart) costChart.destroy();
+function renderProjectionChart(r) {
+    const ctx = document.getElementById('projection-chart');
+    if (projectionChart) projectionChart.destroy();
 
-    costChart = new Chart(ctx, {
+    projectionChart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: ['Monthly Breakdown'],
+            labels: r.annualYears.map(y => `Y${y.year}`),
             datasets: [
-                { label: 'Payroll', data: [r.totalPayroll], backgroundColor: '#ef4444' },
-                { label: 'Fixed OpEx', data: [r.fixedOpex], backgroundColor: '#f59e0b' },
-                { label: 'Variable OpEx', data: [r.totalVariableOpex], backgroundColor: '#eab308' },
-                { label: 'Net Profit', data: [Math.max(0, r.netProfit)], backgroundColor: '#10b981' }
+                { label: 'Revenue', data: r.annualYears.map(y => y.revenue), backgroundColor: 'rgba(16,185,129,0.7)', order: 2 },
+                { label: 'Costs', data: r.annualYears.map(y => y.costs), backgroundColor: 'rgba(239,68,68,0.5)', order: 2 },
+                {
+                    label: 'EBITDA',
+                    data: r.annualYears.map(y => y.ebitda),
+                    type: 'line',
+                    borderColor: '#1a56db',
+                    borderWidth: 3,
+                    tension: 0.3,
+                    backgroundColor: 'rgba(26,86,219,0.1)',
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmtMoney(c.raw) } }
+            },
+            scales: { y: { ticks: { callback: v => '$' + (v / 1000000).toFixed(1) + 'M' } } }
+        }
+    });
+}
+
+function renderAnnualTable(r) {
+    const rows = r.annualYears.map(y => ({
+        id: y.year,
+        year: 'Year ' + y.year,
+        clients: y.avgClients,
+        revenue: y.revenue,
+        costs: y.costs,
+        ebitda: y.ebitda,
+        margin: y.margin
+    }));
+
+    const table = new DataTable('annual-table', {
+        columns: [
+            { key: 'year', label: 'Year' },
+            { key: 'clients', label: 'Avg Clients', type: 'number', align: 'text-center' },
+            { key: 'revenue', label: 'Revenue', type: 'number', align: 'text-right', render: v => fmtMoney(v) },
+            { key: 'costs', label: 'Costs', type: 'number', align: 'text-right', render: v => fmtMoney(v) },
+            { key: 'ebitda', label: 'EBITDA', type: 'number', align: 'text-right', render: v => {
+                const cls = v >= 0 ? 'text-success' : 'text-danger';
+                return `<strong class="${cls}">${fmtMoney(v)}</strong>`;
+            }},
+            { key: 'margin', label: 'Margin', align: 'text-right', render: v => {
+                const cls = v >= 20 ? 'text-success' : v >= 0 ? 'text-warning' : 'text-danger';
+                return `<span class="${cls}">${fmtPercent(v)}</span>`;
+            }}
+        ],
+        defaultSort: 'id',
+        pageSize: 15
+    });
+    table.setData(rows);
+}
+
+function renderCostBreakdownChart(r) {
+    const ctx = document.getElementById('cost-breakdown-chart');
+    if (costBreakdownChart) costBreakdownChart.destroy();
+
+    costBreakdownChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Monthly Stabilized Costs'],
+            datasets: [
+                { label: 'RBT Labor', data: [r.rbtMonthlyLabor], backgroundColor: '#3b82f6' },
+                { label: 'BCBA Labor', data: [r.bcbaMonthlyLabor], backgroundColor: '#8b5cf6' },
+                { label: 'Admin / Overhead', data: [r.adminMonthly], backgroundColor: '#ef4444' },
+                { label: 'Non-Labor', data: [r.nonLaborMonthly], backgroundColor: '#f59e0b' }
             ]
         },
         options: {
@@ -188,110 +456,6 @@ function renderCostChart(r) {
     });
 }
 
-function renderAnnualTable(r) {
-    const rows = [];
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    let ytdProfit = 0;
-    for (let i = 0; i < 12; i++) {
-        ytdProfit += r.netProfit;
-        rows.push({
-            id: i,
-            month: monthNames[i],
-            revenue: r.revenueMonthly,
-            costs: r.totalCosts,
-            profit: r.netProfit,
-            ytd_profit: ytdProfit
-        });
-    }
-    rows.push({
-        id: 999,
-        month: 'ANNUAL TOTAL',
-        revenue: r.revenueMonthly * 12,
-        costs: r.totalCosts * 12,
-        profit: r.netProfit * 12,
-        ytd_profit: r.netProfit * 12
-    });
-
-    const table = new DataTable('annual-table', {
-        columns: [
-            { key: 'month', label: 'Month', render: v => v === 'ANNUAL TOTAL' ? `<strong>${v}</strong>` : v },
-            { key: 'revenue', label: 'Revenue', type: 'number', align: 'text-right', render: v => fmtMoney(v) },
-            { key: 'costs', label: 'Costs', type: 'number', align: 'text-right', render: v => fmtMoney(v) },
-            { key: 'profit', label: 'Monthly Profit', type: 'number', align: 'text-right', render: v => {
-                const cls = v >= 0 ? 'text-success' : 'text-danger';
-                return `<strong class="${cls}">${fmtMoney(v)}</strong>`;
-            }},
-            { key: 'ytd_profit', label: 'YTD Profit', type: 'number', align: 'text-right', render: v => {
-                const cls = v >= 0 ? 'text-success' : 'text-danger';
-                return `<span class="${cls}">${fmtMoney(v)}</span>`;
-            }}
-        ],
-        defaultSort: 'id',
-        pageSize: 13
-    });
-    table.setData(rows);
-}
-
-function renderSensitivity(inp, baseline) {
-    // For each key dial, calculate: -10%, baseline, +10%, +25%
-    const dials = [
-        { id: 'pf-clients', label: 'Active Clients' },
-        { id: 'pf-hours-per-client', label: 'Hours / Client / Week' },
-        { id: 'pf-billed-rate', label: 'Billed Rate / Hour' },
-        { id: 'pf-collection-rate', label: 'Collection Rate' },
-        { id: 'pf-staff-rate', label: 'Staff Rate' },
-        { id: 'pf-utilization', label: 'Utilization' },
-        { id: 'pf-fixed-opex', label: 'Fixed OpEx' }
-    ];
-
-    const rows = dials.map((d, idx) => {
-        const scenarios = {};
-        for (const pct of [-10, -5, 0, 5, 10, 25]) {
-            const modified = { ...inp };
-            modified[d.id] = inp[d.id] * (1 + pct / 100);
-            scenarios[pct] = runModel(modified).netProfit;
-        }
-        return {
-            id: idx,
-            dial: d.label,
-            value: inp[d.id],
-            neg10: scenarios[-10],
-            neg5: scenarios[-5],
-            baseline: scenarios[0],
-            pos5: scenarios[5],
-            pos10: scenarios[10],
-            pos25: scenarios[25]
-        };
-    });
-
-    const renderCell = (v) => {
-        const cls = v >= baseline.netProfit ? 'text-success' : 'text-danger';
-        return `<span class="${cls}">${fmtMoney(v)}</span>`;
-    };
-
-    const table = new DataTable('sensitivity-table', {
-        columns: [
-            { key: 'dial', label: 'Change this dial...' },
-            { key: 'neg10', label: '-10%', type: 'number', align: 'text-right', render: renderCell },
-            { key: 'neg5', label: '-5%', type: 'number', align: 'text-right', render: renderCell },
-            { key: 'baseline', label: 'Baseline', type: 'number', align: 'text-right', render: v => `<strong>${fmtMoney(v)}</strong>` },
-            { key: 'pos5', label: '+5%', type: 'number', align: 'text-right', render: renderCell },
-            { key: 'pos10', label: '+10%', type: 'number', align: 'text-right', render: renderCell },
-            { key: 'pos25', label: '+25%', type: 'number', align: 'text-right', render: renderCell }
-        ],
-        defaultSort: 'id',
-        pageSize: 10
-    });
-    table.setData(rows);
-}
-
-function resetDefaults() {
-    for (const [id, val] of Object.entries(DEFAULTS)) {
-        document.getElementById(id).value = val;
-    }
-    calculate();
-}
-
 async function saveScenario() {
     const name = prompt('Scenario name:');
     if (!name) return;
@@ -303,7 +467,14 @@ async function saveScenario() {
     const { error } = await supabase.from('pro_forma_scenarios').insert({
         name,
         assumptions: inp,
-        outputs,
+        outputs: {
+            stabMonthlyRevenue: outputs.stabMonthlyRevenue,
+            stabTotalCosts: outputs.stabTotalCosts,
+            stabEbitda: outputs.stabEbitda,
+            stabMargin: outputs.stabMargin,
+            breakeven: outputs.breakeven,
+            exitValue: outputs.exitValue
+        },
         created_by: user.id
     });
 
@@ -316,29 +487,33 @@ async function loadScenarios() {
     const { data } = await supabase
         .from('pro_forma_scenarios')
         .select('*, app_users(first_name, last_name)')
+        .order('is_default', { ascending: false })
         .order('created_at', { ascending: false });
 
     const list = document.getElementById('scenarios-list');
     if (!data || data.length === 0) {
-        list.innerHTML = '<p class="text-sm text-muted">No saved scenarios yet. Tweak the inputs above and click "Save Scenario" to save one.</p>';
+        list.innerHTML = '<p class="text-sm text-muted">No saved scenarios yet.</p>';
         return;
     }
 
     let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">';
     for (const s of data) {
-        const profit = parseFloat(s.outputs?.netProfit) || 0;
-        const profitCls = profit >= 0 ? 'text-success' : 'text-danger';
-        const author = s.app_users ? `${s.app_users.first_name} ${s.app_users.last_name}` : 'Unknown';
-        html += `<div class="card" style="padding:12px;">
+        const ebitda = parseFloat(s.outputs?.stabEbitda) || 0;
+        const ebitdaCls = ebitda >= 0 ? 'text-success' : 'text-danger';
+        const author = s.app_users ? `${s.app_users.first_name} ${s.app_users.last_name}` : 'Seed';
+        html += `<div class="card" style="padding:12px;${s.is_default ? 'border-left:4px solid var(--color-primary);' : ''}">
             <div class="flex-between mb-1">
-                <strong>${s.name}</strong>
-                <span class="${profitCls} font-bold">${fmtMoney(profit)}</span>
+                <strong>${s.name}${s.is_default ? ' <span class="badge badge-info text-xs">DEFAULT</span>' : ''}</strong>
+                <span class="${ebitdaCls} font-bold">${fmtMoney(ebitda)}/mo</span>
             </div>
-            <div class="text-xs text-muted mb-1">${s.assumptions['pf-clients']} clients · ${s.assumptions['pf-hours-per-client']} hrs/wk · ${fmtPercent(s.outputs?.marginPct || 0)} margin</div>
+            <div class="text-xs text-muted mb-1">
+                ${s.assumptions.client_max || '?'} clients · ${s.assumptions.avg_hours_per_resident_week || '?'} hrs/wk
+                · ${fmtPercent(s.outputs?.stabMargin || 0)} margin
+            </div>
             <div class="text-xs text-muted">${author} · ${new Date(s.created_at).toLocaleDateString()}</div>
             <div class="flex gap-1 mt-1">
                 <button class="btn btn-sm btn-secondary load-scn" data-id="${s.id}">Load</button>
-                <button class="btn btn-sm btn-ghost text-danger del-scn" data-id="${s.id}">Delete</button>
+                ${!s.is_default ? `<button class="btn btn-sm btn-ghost text-danger del-scn" data-id="${s.id}">Delete</button>` : ''}
             </div>
         </div>`;
     }
@@ -349,11 +524,8 @@ async function loadScenarios() {
         btn.addEventListener('click', () => {
             const s = data.find(x => x.id === btn.dataset.id);
             if (!s) return;
-            for (const [id, val] of Object.entries(s.assumptions)) {
-                const el = document.getElementById(id);
-                if (el) el.value = val;
-            }
-            calculate();
+            setInputs({ ...DEFAULTS, ...s.assumptions });
+            recalculate();
             showToast(`Loaded "${s.name}".`, 'success');
         });
     });
@@ -372,32 +544,39 @@ function exportData() {
     const inp = getInputs();
     const r = runModel(inp);
 
-    exportToExcel(`pro_forma_${new Date().toISOString().split('T')[0]}.xlsx`, [
+    exportToExcel(`MO_ProForma_${new Date().toISOString().split('T')[0]}.xlsx`, [
         {
             name: 'Assumptions',
-            data: Object.entries(inp).map(([k, v]) => ({ Assumption: k.replace('pf-', '').replace(/-/g, ' '), Value: v }))
+            data: Object.entries(inp).map(([k, v]) => ({ Assumption: k.replace(/_/g, ' '), Value: v }))
         },
         {
-            name: 'Monthly Output',
+            name: 'Stabilized P&L',
             data: [{
-                Monthly_Billable_Hours: r.monthlyBillableHours.toFixed(2),
-                Monthly_Billed: r.billedMonthly.toFixed(2),
-                Monthly_Revenue: r.revenueMonthly.toFixed(2),
-                Monthly_Payroll: r.totalPayroll.toFixed(2),
-                Monthly_Fixed_OpEx: r.fixedOpex.toFixed(2),
-                Monthly_Variable_OpEx: r.totalVariableOpex.toFixed(2),
-                Monthly_Total_Costs: r.totalCosts.toFixed(2),
-                Monthly_Net_Profit: r.netProfit.toFixed(2),
-                Margin_Percent: r.marginPct.toFixed(2)
+                Monthly_Revenue: r.stabMonthlyRevenue,
+                Monthly_Direct_Labor: r.stabDirectLabor,
+                Monthly_Admin_Overhead: r.adminMonthly,
+                Monthly_Non_Labor: r.nonLaborMonthly,
+                Monthly_Total_Costs: r.stabTotalCosts,
+                Monthly_EBITDA: r.stabEbitda,
+                Margin_Pct: r.stabMargin.toFixed(2),
+                Annual_Revenue: r.stabMonthlyRevenue * 12,
+                Annual_EBITDA: r.stabEbitda * 12,
+                Total_Startup: r.totalStartup,
+                Exit_Year: r.exitYear,
+                Exit_Value: r.exitValue,
+                Break_Even_Clients: r.breakeven
             }]
         },
         {
-            name: 'Annual Projection',
-            data: [{
-                Annual_Revenue: (r.revenueMonthly * 12).toFixed(2),
-                Annual_Costs: (r.totalCosts * 12).toFixed(2),
-                Annual_Net_Profit: (r.netProfit * 12).toFixed(2)
-            }]
+            name: '10-Year Projection',
+            data: r.annualYears.map(y => ({
+                Year: y.year,
+                Avg_Clients: y.avgClients,
+                Revenue: y.revenue,
+                Costs: y.costs,
+                EBITDA: y.ebitda,
+                Margin_Pct: y.margin.toFixed(2)
+            }))
         }
     ]);
 }

@@ -47,9 +47,8 @@ function render() {
     let html = '';
     for (const inv of investors) {
         const contributed = (inv.investor_contributions || []).reduce((s, c) => s + parseFloat(c.amount), 0);
-        const distributed = (inv.investor_distributions || []).reduce((s, d) => s + parseFloat(d.amount), 0);
-        const outstanding = contributed - distributed;
         const hasLogin = !!inv.app_users;
+        const contribCount = (inv.investor_contributions || []).length;
 
         html += `<div class="card mb-2">
             <div class="flex-between mb-2">
@@ -65,24 +64,19 @@ function render() {
                     <div class="text-xs text-muted">${inv.phone || ''}</div>
                 </div>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-bottom:12px;">
+            <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:16px;margin-bottom:12px;">
                 <div>
                     <div class="text-xs text-muted">Total Contributed</div>
-                    <div style="font-size:1.2rem;font-weight:700;" class="text-success">${fmtMoney(contributed)}</div>
+                    <div style="font-size:1.5rem;font-weight:700;" class="text-success">${fmtMoney(contributed)}</div>
                 </div>
                 <div>
-                    <div class="text-xs text-muted">Total Distributed</div>
-                    <div style="font-size:1.2rem;font-weight:700;">${fmtMoney(distributed)}</div>
-                </div>
-                <div>
-                    <div class="text-xs text-muted">Net Outstanding</div>
-                    <div style="font-size:1.2rem;font-weight:700;" class="${outstanding > 0 ? 'text-warning' : ''}">${fmtMoney(outstanding)}</div>
+                    <div class="text-xs text-muted">Contributions on Record</div>
+                    <div style="font-size:1.5rem;font-weight:700;">${contribCount}</div>
                 </div>
             </div>
             <div class="flex gap-1">
                 <button class="btn btn-sm btn-secondary edit-inv" data-id="${inv.id}">Edit Investor</button>
-                <button class="btn btn-sm btn-success add-contrib" data-id="${inv.id}">+ Add Contribution</button>
-                <button class="btn btn-sm btn-primary add-distrib" data-id="${inv.id}">+ Record Distribution</button>
+                <button class="btn btn-sm btn-success add-contrib" data-id="${inv.id}">+ Record Investment</button>
                 <button class="btn btn-sm btn-ghost view-history" data-id="${inv.id}">View History</button>
             </div>
         </div>`;
@@ -95,9 +89,6 @@ function render() {
     });
     list.querySelectorAll('.add-contrib').forEach(btn => {
         btn.addEventListener('click', () => openContribForm(btn.dataset.id));
-    });
-    list.querySelectorAll('.add-distrib').forEach(btn => {
-        btn.addEventListener('click', () => openDistribForm(btn.dataset.id));
     });
     list.querySelectorAll('.view-history').forEach(btn => {
         btn.addEventListener('click', () => openHistoryModal(investors.find(i => i.id === btn.dataset.id)));
@@ -234,7 +225,7 @@ function openContribForm(investorId) {
             </div>
         </form>
     `;
-    createModal('cf-modal', 'Add Contribution', bodyHTML, `
+    createModal('cf-modal', 'Record Investment (Bank Funding)', bodyHTML, `
         <button class="btn btn-secondary" id="cf-cancel">Cancel</button>
         <button class="btn btn-primary" id="cf-save">Save</button>
     `);
@@ -312,37 +303,27 @@ function openDistribForm(investorId) {
 
 function openHistoryModal(inv) {
     const contribs = (inv.investor_contributions || []).sort((a, b) => b.contribution_date.localeCompare(a.contribution_date));
-    const distribs = (inv.investor_distributions || []).sort((a, b) => b.distribution_date.localeCompare(a.distribution_date));
+    const total = contribs.reduce((s, c) => s + parseFloat(c.amount), 0);
 
     const bodyHTML = `
-        <div class="grid-2 gap-lg">
-            <div>
-                <h4 class="mb-1">Contributions (${contribs.length})</h4>
-                <div class="card">
-                    ${contribs.length === 0 ? '<p class="text-sm text-muted">No contributions yet.</p>' : contribs.map(c => `
-                        <div class="flex-between mb-1" style="padding:6px;border-bottom:1px solid var(--color-border);">
-                            <div>
-                                <div>${formatDate(c.contribution_date)}</div>
-                                <div class="text-xs text-muted">${c.contribution_type}${c.notes ? ' · ' + c.notes : ''}</div>
-                            </div>
-                            <strong class="text-success">${fmtMoney(c.amount)}</strong>
+        <div>
+            <h4 class="mb-1">Investment History (${contribs.length})</h4>
+            <div class="card">
+                ${contribs.length === 0 ? '<p class="text-sm text-muted">No investments recorded yet.</p>' : contribs.map(c => `
+                    <div class="flex-between mb-1" style="padding:8px;border-bottom:1px solid var(--color-border);">
+                        <div>
+                            <div><strong>${formatDate(c.contribution_date)}</strong></div>
+                            <div class="text-xs text-muted">${c.contribution_type}${c.notes ? ' · ' + c.notes : ''}</div>
                         </div>
-                    `).join('')}
-                </div>
-            </div>
-            <div>
-                <h4 class="mb-1">Distributions (${distribs.length})</h4>
-                <div class="card">
-                    ${distribs.length === 0 ? '<p class="text-sm text-muted">No distributions yet.</p>' : distribs.map(d => `
-                        <div class="flex-between mb-1" style="padding:6px;border-bottom:1px solid var(--color-border);">
-                            <div>
-                                <div>${formatDate(d.distribution_date)}</div>
-                                <div class="text-xs text-muted">${d.distribution_type}${d.notes ? ' · ' + d.notes : ''}</div>
-                            </div>
-                            <strong>${fmtMoney(d.amount)}</strong>
-                        </div>
-                    `).join('')}
-                </div>
+                        <strong class="text-success" style="font-size:1.1rem;">${fmtMoney(c.amount)}</strong>
+                    </div>
+                `).join('')}
+                ${contribs.length > 0 ? `
+                    <div class="flex-between mt-1" style="padding:8px;border-top:2px solid var(--color-border);">
+                        <strong>Total Invested</strong>
+                        <strong class="text-success" style="font-size:1.2rem;">${fmtMoney(total)}</strong>
+                    </div>
+                ` : ''}
             </div>
         </div>
     `;
