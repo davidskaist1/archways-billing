@@ -97,27 +97,37 @@ function render() {
 
 function openForm(inv = null) {
     const isEdit = !!inv;
-    const userOpts = appUsers.map(u =>
-        `<option value="${u.id}" ${inv?.app_user_id === u.id ? 'selected' : ''}>${u.first_name} ${u.last_name} (${u.email})</option>`
-    ).join('');
+    const hasLogin = !!inv?.app_user_id;
+
+    // Suggested first/last names from the full name (for new investors)
+    const nameParts = (inv?.name || '').trim().split(/\s+/);
+    const firstNameGuess = nameParts[0] || '';
+    const lastNameGuess = nameParts.slice(1).join(' ') || '';
 
     const bodyHTML = `
         <form id="inv-form">
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Name *</label>
-                    <input class="form-input" name="name" required value="${inv?.name || ''}">
+                    <label class="form-label">First Name *</label>
+                    <input class="form-input" name="first_name" required value="${firstNameGuess}">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Email</label>
-                    <input class="form-input" type="email" name="email" value="${inv?.email || ''}">
+                    <label class="form-label">Last Name *</label>
+                    <input class="form-input" name="last_name" required value="${lastNameGuess}">
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
+                    <label class="form-label">Email *</label>
+                    <input class="form-input" type="email" name="email" required value="${inv?.email || ''}" ${hasLogin ? 'readonly style="background:#f9f9f9;"' : ''}>
+                    ${hasLogin ? '<span class="text-xs text-muted">Email cannot be changed once a login account exists.</span>' : ''}
+                </div>
+                <div class="form-group">
                     <label class="form-label">Phone</label>
                     <input class="form-input" name="phone" value="${inv?.phone || ''}">
                 </div>
+            </div>
+            <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Investor Type</label>
                     <select class="form-select" name="investor_type">
@@ -132,14 +142,29 @@ function openForm(inv = null) {
                     <input class="form-input" type="number" step="0.001" name="equity_percent" value="${inv?.equity_percent || ''}">
                 </div>
             </div>
-            <div class="form-group">
-                <label class="form-label">Link to Login Account</label>
-                <select class="form-select" name="app_user_id">
-                    <option value="">— None (no portal access) —</option>
-                    ${userOpts}
-                </select>
-                <span class="text-xs text-muted">Only app users with role "investor" appear here. Add them on the Users page first.</span>
-            </div>
+
+            ${!hasLogin ? `
+                <div class="card mb-2" style="background:var(--color-info-light);">
+                    <div class="form-check mb-1">
+                        <input type="checkbox" name="create_login" id="inv-create-login" checked>
+                        <label for="inv-create-login"><strong>Create portal login for this investor</strong></label>
+                    </div>
+                    <p class="text-xs text-muted mb-1">They'll be able to log in at <code>finance.archwaysaba.com</code> and see only the Investor Portal (Dashboard + Pro Forma).</p>
+                    <div class="form-group mt-1">
+                        <label class="form-label">Temporary Password *</label>
+                        <div class="flex gap-1">
+                            <input class="form-input" type="text" name="password" id="inv-password" placeholder="Min 8 characters">
+                            <button type="button" class="btn btn-secondary btn-sm" id="inv-gen-pw" style="white-space:nowrap;">Generate</button>
+                        </div>
+                        <span class="text-xs text-muted">You'll see this password after saving — copy it and share it with them. They can change it on first login.</span>
+                    </div>
+                </div>
+            ` : `
+                <div class="card mb-2" style="background:var(--color-success-light);">
+                    <p class="text-sm mb-0">✓ <strong>Portal access enabled</strong> — this investor has a login account. They can reset their password from the login page.</p>
+                </div>
+            `}
+
             <div class="form-group">
                 <label class="form-label">Notes</label>
                 <textarea class="form-textarea" name="notes" rows="3">${inv?.notes || ''}</textarea>
@@ -154,6 +179,18 @@ function openForm(inv = null) {
         <button class="btn btn-primary" id="inv-save">Save</button>
     `);
     openModal('inv-modal');
+
+    // Password generator
+    const genBtn = document.getElementById('inv-gen-pw');
+    if (genBtn) {
+        genBtn.addEventListener('click', () => {
+            const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+            let pwd = 'Arch';
+            for (let i = 0; i < 8; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+            pwd += '!';
+            document.getElementById('inv-password').value = pwd;
+        });
+    }
 
     document.getElementById('inv-cancel').addEventListener('click', () => closeModal('inv-modal'));
 
@@ -171,30 +208,90 @@ function openForm(inv = null) {
 
     document.getElementById('inv-save').addEventListener('click', async () => {
         const fd = new FormData(document.getElementById('inv-form'));
-        const record = {
-            name: fd.get('name').trim(),
-            email: fd.get('email').trim() || null,
-            phone: fd.get('phone').trim() || null,
-            investor_type: fd.get('investor_type'),
-            equity_percent: fd.get('equity_percent') ? parseFloat(fd.get('equity_percent')) : null,
-            app_user_id: fd.get('app_user_id') || null,
-            notes: fd.get('notes').trim() || null
-        };
-        if (isEdit) record.is_active = document.getElementById('inv-active').checked;
+        const firstName = fd.get('first_name').trim();
+        const lastName = fd.get('last_name').trim();
+        const email = fd.get('email').trim();
+        const phone = fd.get('phone').trim() || null;
+        const investorType = fd.get('investor_type');
+        const equityPct = fd.get('equity_percent') ? parseFloat(fd.get('equity_percent')) : null;
+        const notes = fd.get('notes').trim() || null;
 
-        if (!record.name) { showToast('Name is required.', 'error'); return; }
+        if (!firstName || !lastName) { showToast('First and last name are required.', 'error'); return; }
+        if (!email) { showToast('Email is required.', 'error'); return; }
 
-        if (isEdit) {
-            const { error } = await supabase.from('investors').update(record).eq('id', inv.id);
-            if (error) { showToast('Failed: ' + error.message, 'error'); return; }
-            showToast('Updated.', 'success');
-        } else {
-            const { error } = await supabase.from('investors').insert(record);
-            if (error) { showToast('Failed: ' + error.message, 'error'); return; }
-            showToast('Added.', 'success');
+        const createLoginCheckbox = document.getElementById('inv-create-login');
+        const createLogin = createLoginCheckbox && createLoginCheckbox.checked;
+        const password = document.getElementById('inv-password')?.value || '';
+
+        if (createLogin) {
+            if (!password || password.length < 8) {
+                showToast('Temporary password required (at least 8 characters). Click Generate for a random one.', 'error');
+                return;
+            }
         }
-        closeModal('inv-modal');
-        load();
+
+        const saveBtn = document.getElementById('inv-save');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        try {
+            let appUserId = inv?.app_user_id || null;
+
+            // Step 1: Create login account if requested and not already linked
+            if (createLogin && !appUserId) {
+                const response = await fetch('/.netlify/functions/create-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        first_name: firstName,
+                        last_name: lastName,
+                        email,
+                        password,
+                        role: 'investor'
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to create login account');
+                }
+                appUserId = result.app_user?.id;
+            }
+
+            // Step 2: Save investor record
+            const record = {
+                name: `${firstName} ${lastName}`,
+                email,
+                phone,
+                investor_type: investorType,
+                equity_percent: equityPct,
+                app_user_id: appUserId,
+                notes
+            };
+            if (isEdit) record.is_active = document.getElementById('inv-active').checked;
+
+            if (isEdit) {
+                const { error } = await supabase.from('investors').update(record).eq('id', inv.id);
+                if (error) throw error;
+                showToast('Updated.', 'success');
+            } else {
+                const { error } = await supabase.from('investors').insert(record);
+                if (error) throw error;
+
+                if (createLogin) {
+                    // Show the temporary password prominently so admin can copy it
+                    showToast(`Investor + login created! Temp password: ${password}`, 'success', 15000);
+                } else {
+                    showToast('Investor added.', 'success');
+                }
+            }
+
+            closeModal('inv-modal');
+            load();
+        } catch (err) {
+            showToast('Failed: ' + err.message, 'error');
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
+        }
     });
 }
 

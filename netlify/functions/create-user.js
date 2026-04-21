@@ -27,8 +27,8 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ error: 'All fields are required: first_name, last_name, email, password, role' }) };
         }
 
-        if (!['admin', 'billing', 'payroll'].includes(role)) {
-            return { statusCode: 400, body: JSON.stringify({ error: 'Role must be admin, billing, or payroll' }) };
+        if (!['admin', 'billing', 'payroll', 'investor'].includes(role)) {
+            return { statusCode: 400, body: JSON.stringify({ error: 'Role must be admin, billing, payroll, or investor' }) };
         }
 
         // Create auth user via Supabase Admin API
