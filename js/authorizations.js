@@ -43,6 +43,59 @@ async function init() {
     document.getElementById('backfill-btn').addEventListener('click', runBackfill);
 
     await load();
+
+    // If navigated here from a BV, pre-fill an auth request
+    const params = new URLSearchParams(window.location.search);
+    const fromBV = params.get('fromBV');
+    if (fromBV) {
+        await openAuthRequestFromBV(fromBV);
+        // Clean URL so refreshing doesn't re-open
+        window.history.replaceState({}, '', 'authorizations.html');
+    }
+}
+
+async function openAuthRequestFromBV(bvId) {
+    const { data: bv, error } = await supabase
+        .from('benefit_verifications')
+        .select(`
+            *,
+            clients(id, first_name, last_name, cr_client_id, insurance_member_id),
+            insurance_payers(id, name)
+        `)
+        .eq('id', bvId)
+        .single();
+
+    if (error || !bv) {
+        showToast('Could not load benefits verification', 'error');
+        return;
+    }
+
+    // Build a synthetic "prefill" object shaped like an auth
+    const prefill = {
+        client_id: bv.client_id,
+        payer_id: bv.payer_id,
+        cpt_codes: bv.cpt_codes_covered || [],
+        request_submission_method: bv.auth_submission_method || '',
+        // Pre-fill notes with the BV context
+        request_notes: buildBVContextNote(bv),
+        _fromBV: bv
+    };
+
+    openAuthForm(prefill, 'request', true /* prefillOnly, not a real edit */);
+}
+
+function buildBVContextNote(bv) {
+    const client = bv.clients ? `${bv.clients.first_name} ${bv.clients.last_name}` : '';
+    const payer = bv.insurance_payers?.name || '';
+    const memberId = bv.clients?.insurance_member_id || '';
+
+    let note = `--- Context from Benefits Verification ---\n`;
+    note += `Client: ${client}\nPayer: ${payer}${memberId ? ' (Member ID: ' + memberId + ')' : ''}\n`;
+    if (bv.network_status) note += `Network: ${bv.network_status.toUpperCase()}\n`;
+    if (bv.auth_contact_phone) note += `Auth contact phone: ${bv.auth_contact_phone}\n`;
+    if (bv.auth_contact_notes) note += `Auth contact notes: ${bv.auth_contact_notes}\n`;
+    note += `--------------------------------------\n\n`;
+    return note;
 }
 
 async function runBackfill() {
@@ -360,9 +413,10 @@ async function pushToCRM(authId) {
     if (btn) { btn.disabled = false; btn.textContent = 'Push to CRM'; }
 }
 
-function openAuthForm(auth = null, mode = 'request') {
+function openAuthForm(auth = null, mode = 'request', prefillOnly = false) {
     // mode can be: 'request' (new or edit request), 'approval' (record approval on existing request), 'existing' (add or edit fully-approved auth)
-    const isEdit = !!auth;
+    // prefillOnly = true means auth is just pre-fill data (from BV), not a real saved record
+    const isEdit = !!auth && !prefillOnly;
     const isRequestMode = mode === 'request';
     const isApprovalMode = mode === 'approval';
     const isExistingMode = mode === 'existing';
@@ -376,8 +430,16 @@ function openAuthForm(auth = null, mode = 'request') {
 
     const title = isApprovalMode ? '✓ Record Auth Approval' :
                   isRequestMode && isEdit ? 'Edit Auth Request' :
+                  isRequestMode && prefillOnly ? '📞 Request Auth (from Benefits Verification)' :
                   isRequestMode ? '📞 Log Auth Request Call' :
                   isEdit ? 'Edit Authorization' : 'Add Existing Authorization';
+
+    const prefillBanner = prefillOnly && auth?._fromBV ? `
+        <div class="card mb-2" style="background:var(--color-info-light);border-left:4px solid var(--color-info);">
+            <p class="text-sm mb-0"><strong>💡 Pre-filled from Benefits Verification</strong></p>
+            <p class="text-xs text-muted mb-0">Client, payer, CPT codes, and submission method are auto-populated. Confirm the Request Date and add the Reference # when you call.</p>
+        </div>
+    ` : '';
 
     // Request section (shown in request mode OR approval mode where it's already filled)
     const requestSection = !isExistingMode ? `
@@ -526,7 +588,7 @@ function openAuthForm(auth = null, mode = 'request') {
         </div>
     `;
 
-    const bodyHTML = `<form id="auth-form">${requestSection}${approvalSection}${notesSection}</form>`;
+    const bodyHTML = `<form id="auth-form">${prefillBanner}${requestSection}${approvalSection}${notesSection}</form>`;
 
     const footerHTML = `
         ${isEdit ? '<button class="btn btn-danger" id="auth-delete">Delete</button>' : ''}

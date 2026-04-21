@@ -128,8 +128,11 @@ function render() {
             </div>`
             : '';
 
-        html += `<div class="card mb-2" style="cursor:pointer;" data-bv-id="${bv.id}">
-            <div class="flex-between mb-1">
+        // Show "Request Auth" button if BV is completed and auth is required
+        const canRequestAuth = bv.status === 'completed' && bv.auth_required;
+
+        html += `<div class="card mb-2" data-bv-id="${bv.id}">
+            <div class="flex-between mb-1" style="cursor:pointer;" data-open-bv="${bv.id}">
                 <div>
                     <strong>${bv.client_name}</strong>
                     <span class="badge ${statusColor}">${bv.status.replace('_', ' ')}</span>
@@ -141,16 +144,36 @@ function render() {
                     ${bv.member_id ? `<div class="text-xs font-mono text-muted">${bv.member_id}</div>` : ''}
                 </div>
             </div>
-            ${summary}
-            ${bv.call_notes ? `<div class="text-xs text-muted mt-1" style="border-top:1px dashed var(--color-border);padding-top:6px;">📞 ${bv.call_notes.substring(0, 150)}${bv.call_notes.length > 150 ? '...' : ''}</div>` : ''}
+            <div style="cursor:pointer;" data-open-bv="${bv.id}">
+                ${summary}
+                ${bv.call_notes ? `<div class="text-xs text-muted mt-1" style="border-top:1px dashed var(--color-border);padding-top:6px;">📞 ${bv.call_notes.substring(0, 150)}${bv.call_notes.length > 150 ? '...' : ''}</div>` : ''}
+            </div>
+            ${canRequestAuth ? `
+                <div class="mt-2" style="border-top:1px dashed var(--color-border);padding-top:10px;">
+                    <button class="btn btn-sm btn-success request-auth-from-bv" data-bv-id="${bv.id}">
+                        ➜ Request Auth from This BV
+                    </button>
+                    <span class="text-xs text-muted" style="margin-left:8px;">Opens the auth request form pre-filled with this client's info</span>
+                </div>
+            ` : ''}
         </div>`;
     }
     list.innerHTML = html;
 
-    list.querySelectorAll('[data-bv-id]').forEach(card => {
-        card.addEventListener('click', () => {
-            const bv = allBVs.find(b => b.id === card.dataset.bvId);
+    list.querySelectorAll('[data-open-bv]').forEach(el => {
+        el.addEventListener('click', (e) => {
+            if (e.target.closest('.request-auth-from-bv')) return;
+            const bv = allBVs.find(b => b.id === el.dataset.openBv);
             if (bv) openBVForm(bv);
+        });
+    });
+
+    list.querySelectorAll('.request-auth-from-bv').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const bvId = btn.dataset.bvId;
+            // Navigate to authorizations page with the BV id as a query param
+            window.location.href = `authorizations.html?fromBV=${bvId}`;
         });
     });
 }
