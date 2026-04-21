@@ -77,10 +77,11 @@ SELECT
     'MO Pro Forma (Investor Model)',
     'Default assumptions from the Missouri pro forma shared with investors. Medicaid-only, ramp from month 3, stabilize at 250 clients.',
     jsonb_build_object(
-        -- Rates
-        'medicaid_rate_15min', 65.48,
+        -- Rates — per 15-min unit (1 hr = 4 units)
+        -- Note: MO Medicaid 97153 is $16.37 per unit = $65.48/hr
+        'medicaid_rate_15min', 16.37,
         'in_network_rate_15min', 0,
-        'oon_rate_15min', 150,
+        'oon_rate_15min', 37.50,
         'deductible_per_resident', 5000,
         -- RBT
         'medicaid_split', 100,

@@ -5,10 +5,10 @@ import { DataTable, showToast, createModal, openModal, closeModal, confirmDialog
 import { exportToExcel, fmtMoney, fmtPercent, fmtInt } from './investor-helpers.js';
 
 const DEFAULTS = {
-    // Rates
-    medicaid_rate_15min: 65.48,
+    // Rates — per 15-min unit (1 hr = 4 units)
+    medicaid_rate_15min: 16.37,
     in_network_rate_15min: 0,
-    oon_rate_15min: 150,
+    oon_rate_15min: 37.50,
     deductible_per_resident: 5000,
     // RBT
     day_one_residents: 0,
@@ -16,11 +16,11 @@ const DEFAULTS = {
     in_network_split: 0,
     oon_split: 0,
     avg_hours_per_resident_week: 14,
-    // BCBA
+    // BCBA (rates are per HOUR for assessment/supervision per MO Medicaid billing)
     assessment_hours_6month: 8,
-    assessment_rate_per_hour: 101.04,
+    assessment_rate_per_hour: 101.04,  // 97151: per hour
     supervision_hours_per_week: 2,
-    supervision_rate_per_hour: 101.04,
+    supervision_rate_per_hour: 101.04,  // 97155: per hour
     // Labor
     rbt_hourly_rate: 27,
     bcba_hourly_rate: 95,
@@ -329,9 +329,20 @@ function runModel(inp) {
     };
 }
 
+function updateHourlyDisplays(inp) {
+    const fmtHourly = (val) => '= $' + (parseFloat(val || 0) * 4).toFixed(2) + '/hour';
+    const mElem = document.getElementById('medicaid-hourly-display');
+    const inElem = document.getElementById('in-network-hourly-display');
+    const oonElem = document.getElementById('oon-hourly-display');
+    if (mElem) mElem.textContent = fmtHourly(inp.medicaid_rate_15min);
+    if (inElem) inElem.textContent = fmtHourly(inp.in_network_rate_15min);
+    if (oonElem) oonElem.textContent = fmtHourly(inp.oon_rate_15min);
+}
+
 function recalculate() {
     const inp = getInputs();
     const r = runModel(inp);
+    updateHourlyDisplays(inp);
 
     // KPIs
     document.getElementById('out-revenue').textContent = fmtMoney(r.stabMonthlyRevenue);
