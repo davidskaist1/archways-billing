@@ -29,8 +29,8 @@ async function signIn(email, password) {
         throw new Error('No active user account found. Contact your administrator.');
     }
 
-    // Update last login
-    await supabase.from('app_users').update({ last_login_at: new Date().toISOString() }).eq('id', appUser.id);
+    // Update last login (via SECURITY DEFINER RPC — bypasses RLS)
+    await supabase.rpc('update_last_login');
 
     currentUser = data.user;
     currentAppUser = appUser;
