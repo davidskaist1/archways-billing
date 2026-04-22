@@ -128,7 +128,7 @@ async function loadAgingChart() {
             }]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
                 y: {
@@ -200,7 +200,7 @@ async function loadHoursChart() {
         new Chart(ctx, {
             type: 'bar',
             data: { labels: ['No data'], datasets: [{ data: [0] }] },
-            options: { responsive: true, plugins: { legend: { display: false } } }
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
         return;
     }
@@ -229,7 +229,7 @@ async function loadHoursChart() {
             ]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
             plugins: { legend: { position: 'bottom' } }
         }

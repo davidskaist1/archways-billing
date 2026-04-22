@@ -87,11 +87,11 @@
                 <div class="grid-2 gap-lg">
                     <div class="card">
                         <div class="card-header"><h3>Collections Trend</h3></div>
-                        <canvas id="kpi-collections-chart" height="200"></canvas>
+                        <div class="chart-wrapper"><canvas id="kpi-collections-chart"></canvas></div>
                     </div>
                     <div class="card">
                         <div class="card-header"><h3>Denial Rate Trend</h3></div>
-                        <canvas id="kpi-denial-chart" height="200"></canvas>
+                        <div class="chart-wrapper"><canvas id="kpi-denial-chart"></canvas></div>
                     </div>
                 </div>
             </div>
@@ -109,7 +109,7 @@
                     </div>
                 </div>
                 <div class="card mb-3">
-                    <canvas id="aging-chart" height="250"></canvas>
+                    <div class="chart-wrapper"><canvas id="aging-chart"></canvas></div>
                 </div>
                 <div id="aging-table"></div>
             </div>
@@ -130,7 +130,7 @@
                     </div>
                 </div>
                 <div class="grid-2 gap-lg">
-                    <div class="card"><canvas id="revenue-chart" height="300"></canvas></div>
+                    <div class="card"><div class="chart-wrapper"><canvas id="revenue-chart"></canvas></div></div>
                     <div class="card" id="revenue-table-card"><div id="revenue-table"></div></div>
                 </div>
             </div>
@@ -153,11 +153,11 @@
                 <div class="grid-2 gap-lg mb-3">
                     <div class="card">
                         <div class="card-header"><h3>By Category</h3></div>
-                        <canvas id="denial-cat-chart" height="250"></canvas>
+                        <div class="chart-wrapper"><canvas id="denial-cat-chart"></canvas></div>
                     </div>
                     <div class="card">
                         <div class="card-header"><h3>By Payer</h3></div>
-                        <canvas id="denial-payer-chart" height="250"></canvas>
+                        <div class="chart-wrapper"><canvas id="denial-payer-chart"></canvas></div>
                     </div>
                 </div>
                 <div id="denial-analytics-table"></div>
@@ -214,7 +214,7 @@
                         <button class="btn btn-ghost" id="biller-export-btn">Export CSV</button>
                     </div>
                 </div>
-                <div class="card mb-3"><canvas id="biller-chart" height="250"></canvas></div>
+                <div class="card mb-3"><div class="chart-wrapper"><canvas id="biller-chart"></canvas></div></div>
                 <div id="biller-table"></div>
             </div>
 
@@ -233,7 +233,7 @@
                         <button class="btn btn-ghost" id="prod-export-btn">Export CSV</button>
                     </div>
                 </div>
-                <div class="card mb-3"><canvas id="prod-chart" height="250"></canvas></div>
+                <div class="card mb-3"><div class="chart-wrapper"><canvas id="prod-chart"></canvas></div></div>
                 <div id="prod-table"></div>
             </div>
 

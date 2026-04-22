@@ -146,7 +146,7 @@ async function runAgingReport() {
             }]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } } }
         }
@@ -227,7 +227,7 @@ async function runRevenueReport() {
             }]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
                 tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${formatCurrency(ctx.raw)}` } }
@@ -309,7 +309,7 @@ async function runProductivityReport() {
             }]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: { y: { beginAtZero: true } }
         }
@@ -520,7 +520,7 @@ async function runKPIDashboard() {
             ]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } } },
             plugins: { legend: { position: 'bottom' } }
         }
@@ -540,7 +540,7 @@ async function runKPIDashboard() {
             }]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
             plugins: { legend: { display: false } }
         }
@@ -601,7 +601,7 @@ async function runDenialAnalytics() {
             datasets: [{ data: Object.values(byCategory), backgroundColor: colors }]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom', labels: { font: { size: 11 } } },
                 tooltip: { callbacks: { label: ctx => ctx.label + ': ' + formatCurrency(ctx.raw) } }
@@ -620,7 +620,7 @@ async function runDenialAnalytics() {
         },
         options: {
             indexAxis: 'y',
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             scales: { x: { ticks: { callback: v => '$' + v.toLocaleString() } } },
             plugins: { legend: { display: false } }
         }
@@ -804,7 +804,7 @@ async function runBillerProductivity() {
             ]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
             plugins: { legend: { position: 'bottom' } }
         }

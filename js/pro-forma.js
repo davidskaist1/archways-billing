@@ -717,7 +717,7 @@ function renderProjectionChart(r) {
             ]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
                 tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmtMoney(c.raw) } }
@@ -778,7 +778,7 @@ function renderCostBreakdownChart(r) {
         },
         options: {
             indexAxis: 'y',
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
                 tooltip: { callbacks: { label: c => c.dataset.label + ': ' + fmtMoney(c.raw) } }

@@ -125,7 +125,7 @@ function renderTrendChart() {
             ]
         },
         options: {
-            responsive: true,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
                 tooltip: {
