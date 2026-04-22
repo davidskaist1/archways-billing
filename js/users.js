@@ -104,14 +104,7 @@ function openAddModal() {
             <div class="form-group">
                 <label class="form-label">Email *</label>
                 <input class="form-input" type="email" name="email" required placeholder="jane@archways.com">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Temporary Password *</label>
-                <div class="flex gap-1">
-                    <input class="form-input" type="text" name="password" id="new-password" required placeholder="Min 8 characters">
-                    <button type="button" class="btn btn-secondary" id="gen-password-btn" style="white-space:nowrap;">Generate</button>
-                </div>
-                <span class="text-xs text-muted">The user will need to change this on first login.</span>
+                <span class="text-xs text-muted">We'll email them an invite link. They'll set their own password on first login.</span>
             </div>
             <div class="form-group">
                 <label class="form-label">Role *</label>
@@ -128,20 +121,11 @@ function openAddModal() {
 
     const footerHTML = `
         <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
-        <button class="btn btn-primary" id="modal-save">Create User</button>
+        <button class="btn btn-primary" id="modal-save">Send Invite</button>
     `;
 
     createModal('user-modal', 'Add User', bodyHTML, footerHTML);
     openModal('user-modal');
-
-    // Generate password button
-    document.getElementById('gen-password-btn').addEventListener('click', () => {
-        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-        let pwd = 'Arch';
-        for (let i = 0; i < 8; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
-        pwd += '!';
-        document.getElementById('new-password').value = pwd;
-    });
 
     // Role description
     document.getElementById('role-select').addEventListener('change', (e) => {
@@ -159,43 +143,37 @@ async function createUser() {
     const first_name = fd.get('first_name').trim();
     const last_name = fd.get('last_name').trim();
     const email = fd.get('email').trim();
-    const password = fd.get('password');
     const role = fd.get('role');
 
-    if (!first_name || !last_name || !email || !password || !role) {
+    if (!first_name || !last_name || !email || !role) {
         showToast('All fields are required.', 'error');
-        return;
-    }
-
-    if (password.length < 8) {
-        showToast('Password must be at least 8 characters.', 'error');
         return;
     }
 
     const saveBtn = document.getElementById('modal-save');
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Creating...';
+    saveBtn.textContent = 'Sending invite…';
 
     try {
         const response = await fetch('/.netlify/functions/create-user', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ first_name, last_name, email, password, role })
+            body: JSON.stringify({ first_name, last_name, email, role })
         });
 
         const result = await response.json();
 
         if (!response.ok) {
-            throw new Error(result.error || 'Failed to create user');
+            throw new Error(result.error || 'Failed to send invite');
         }
 
-        showToast(`User created! Temporary password: ${password}`, 'success', 10000);
+        showToast(`Invite email sent to ${email}. They'll set their password from the link.`, 'success', 10000);
         closeModal('user-modal');
         await loadUsers();
     } catch (err) {
         showToast('Failed: ' + err.message, 'error');
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Create User';
+        saveBtn.textContent = 'Send Invite';
     }
 }
 
@@ -244,13 +222,24 @@ function openEditModal(user) {
             </div>
             <hr style="border:none;border-top:1px solid var(--color-border);margin:16px 0;">
             <div class="form-group">
-                <label class="form-label">Reset Password</label>
-                <div class="flex gap-1">
-                    <input class="form-input" type="text" id="reset-password-input" placeholder="New temporary password">
-                    <button type="button" class="btn btn-secondary" id="gen-reset-pw" style="white-space:nowrap;">Generate</button>
-                </div>
-                <button type="button" class="btn btn-danger btn-sm mt-1" id="reset-password-btn">Reset Password</button>
-                <div id="reset-result" class="mt-1" style="display:none;"></div>
+                <label class="form-label">Account Actions</label>
+                ${user.last_login_at ? '' : `
+                    <div class="card mb-1" style="background:var(--color-warning-light);padding:10px;">
+                        <p class="text-sm mb-1"><strong>This user hasn't logged in yet.</strong> If their invite email didn't arrive, resend it below.</p>
+                        <button type="button" class="btn btn-primary btn-sm" id="resend-invite-btn">✉️ Resend Invite Email</button>
+                    </div>
+                `}
+                <details style="margin-top:8px;">
+                    <summary class="text-sm text-muted" style="cursor:pointer;">Force password reset (sets a new password manually)</summary>
+                    <div class="mt-1">
+                        <div class="flex gap-1">
+                            <input class="form-input" type="text" id="reset-password-input" placeholder="New temporary password">
+                            <button type="button" class="btn btn-secondary" id="gen-reset-pw" style="white-space:nowrap;">Generate</button>
+                        </div>
+                        <button type="button" class="btn btn-danger btn-sm mt-1" id="reset-password-btn">Reset Password</button>
+                        <div id="reset-result" class="mt-1" style="display:none;"></div>
+                    </div>
+                </details>
             </div>
         </form>
     `;
@@ -266,6 +255,30 @@ function openEditModal(user) {
     document.getElementById('edit-role-select')?.addEventListener('change', (e) => {
         document.getElementById('edit-role-desc').textContent = roleDescription(e.target.value);
     });
+
+    // Resend invite (for users who haven't logged in)
+    const resendBtn = document.getElementById('resend-invite-btn');
+    if (resendBtn) {
+        resendBtn.addEventListener('click', async () => {
+            resendBtn.disabled = true;
+            resendBtn.textContent = 'Sending…';
+            try {
+                const res = await fetch('/.netlify/functions/resend-invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: user.email })
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || 'Failed to resend');
+                showToast(`Invite resent to ${user.email}.`, 'success');
+                resendBtn.textContent = '✓ Sent';
+            } catch (err) {
+                showToast('Failed: ' + err.message, 'error');
+                resendBtn.disabled = false;
+                resendBtn.textContent = '✉️ Resend Invite Email';
+            }
+        });
+    }
 
     // Generate password for reset
     document.getElementById('gen-reset-pw').addEventListener('click', () => {

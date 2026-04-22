@@ -147,17 +147,9 @@ function openForm(inv = null) {
                 <div class="card mb-2" style="background:var(--color-info-light);">
                     <div class="form-check mb-1">
                         <input type="checkbox" name="create_login" id="inv-create-login" checked>
-                        <label for="inv-create-login"><strong>Create portal login for this investor</strong></label>
+                        <label for="inv-create-login"><strong>Send portal invite to this investor</strong></label>
                     </div>
-                    <p class="text-xs text-muted mb-1">They'll be able to log in at <code>finance.archwaysaba.com</code> and see only the Investor Portal (Dashboard + Pro Forma).</p>
-                    <div class="form-group mt-1">
-                        <label class="form-label">Temporary Password *</label>
-                        <div class="flex gap-1">
-                            <input class="form-input" type="text" name="password" id="inv-password" placeholder="Min 8 characters">
-                            <button type="button" class="btn btn-secondary btn-sm" id="inv-gen-pw" style="white-space:nowrap;">Generate</button>
-                        </div>
-                        <span class="text-xs text-muted">You'll see this password after saving — copy it and share it with them. They can change it on first login.</span>
-                    </div>
+                    <p class="text-xs text-muted mb-0">They'll get an email with an invite link. When they click it, they'll set their own password and land on the Investor Portal (Dashboard + Pro Forma). No need to share credentials manually.</p>
                 </div>
             ` : `
                 <div class="card mb-2" style="background:var(--color-success-light);">
@@ -221,23 +213,15 @@ function openForm(inv = null) {
 
         const createLoginCheckbox = document.getElementById('inv-create-login');
         const createLogin = createLoginCheckbox && createLoginCheckbox.checked;
-        const password = document.getElementById('inv-password')?.value || '';
-
-        if (createLogin) {
-            if (!password || password.length < 8) {
-                showToast('Temporary password required (at least 8 characters). Click Generate for a random one.', 'error');
-                return;
-            }
-        }
 
         const saveBtn = document.getElementById('inv-save');
         saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving...';
+        saveBtn.textContent = createLogin && !inv?.app_user_id ? 'Sending invite…' : 'Saving…';
 
         try {
             let appUserId = inv?.app_user_id || null;
 
-            // Step 1: Create login account if requested and not already linked
+            // Step 1: Send invite email if requested and not already linked
             if (createLogin && !appUserId) {
                 const response = await fetch('/.netlify/functions/create-user', {
                     method: 'POST',
@@ -246,13 +230,12 @@ function openForm(inv = null) {
                         first_name: firstName,
                         last_name: lastName,
                         email,
-                        password,
                         role: 'investor'
                     })
                 });
                 const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.error || 'Failed to create login account');
+                    throw new Error(result.error || 'Failed to send invite');
                 }
                 appUserId = result.app_user?.id;
             }
@@ -278,8 +261,7 @@ function openForm(inv = null) {
                 if (error) throw error;
 
                 if (createLogin) {
-                    // Show the temporary password prominently so admin can copy it
-                    showToast(`Investor + login created! Temp password: ${password}`, 'success', 15000);
+                    showToast(`Investor added. Invite email sent to ${email}.`, 'success', 10000);
                 } else {
                     showToast('Investor added.', 'success');
                 }

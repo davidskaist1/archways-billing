@@ -1,6 +1,6 @@
-// Server-side function: create a Supabase auth user and matching app_users record
+// Create a user via Supabase invite flow
+// Sends an invite email; user clicks link and sets their own password on /set-password.html
 // Requires SUPABASE_URL and SUPABASE_SERVICE_KEY env vars
-// Called from the User Management page (admin only)
 
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') {
@@ -21,39 +21,64 @@ exports.handler = async (event) => {
     };
 
     try {
-        const { first_name, last_name, email, password, role } = JSON.parse(event.body);
+        const { first_name, last_name, email, role } = JSON.parse(event.body);
 
-        if (!first_name || !last_name || !email || !password || !role) {
-            return { statusCode: 400, body: JSON.stringify({ error: 'All fields are required: first_name, last_name, email, password, role' }) };
+        if (!first_name || !last_name || !email || !role) {
+            return { statusCode: 400, body: JSON.stringify({ error: 'first_name, last_name, email, and role are required' }) };
         }
 
         if (!['admin', 'billing', 'payroll', 'investor'].includes(role)) {
             return { statusCode: 400, body: JSON.stringify({ error: 'Role must be admin, billing, payroll, or investor' }) };
         }
 
-        // Create auth user via Supabase Admin API
-        const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+        // Figure out the site origin for the redirect URL.
+        // Prefer the explicit SITE_URL env var (set to the custom domain),
+        // fall back to the Netlify deploy URL, then the raw request host.
+        const siteUrl = process.env.SITE_URL ||
+            process.env.URL ||
+            (event.headers && (event.headers.origin || (event.headers.host ? `https://${event.headers.host}` : null))) ||
+            'https://finance.archwaysaba.com';
+
+        const redirectTo = `${siteUrl.replace(/\/$/, '')}/set-password.html`;
+
+        // Step 1: Send invite email (creates the auth user + mails them)
+        const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
             method: 'POST',
             headers: supabaseHeaders,
             body: JSON.stringify({
                 email,
-                password,
-                email_confirm: true
+                data: {
+                    first_name,
+                    last_name,
+                    role
+                },
+                // Where the user lands after clicking the invite link
+                // (must be whitelisted in Supabase Auth > URL Configuration > Redirect URLs)
+                redirect_to: redirectTo
             })
         });
 
-        const createData = await createRes.json();
+        const inviteData = await inviteRes.json();
 
-        if (!createRes.ok) {
+        if (!inviteRes.ok) {
             return {
-                statusCode: createRes.status,
-                body: JSON.stringify({ error: createData.msg || createData.message || 'Failed to create auth user' })
+                statusCode: inviteRes.status,
+                body: JSON.stringify({
+                    error: inviteData.msg || inviteData.message || inviteData.error_description || 'Failed to send invite'
+                })
             };
         }
 
-        const authUserId = createData.id;
+        const authUserId = inviteData.id || inviteData.user?.id;
 
-        // Create app_users record
+        if (!authUserId) {
+            return {
+                statusCode: 500,
+                body: JSON.stringify({ error: 'Invite succeeded but no user ID returned' })
+            };
+        }
+
+        // Step 2: Create app_users record
         const insertRes = await fetch(`${SUPABASE_URL}/rest/v1/app_users`, {
             method: 'POST',
             headers: { ...supabaseHeaders, 'Prefer': 'return=representation' },
@@ -69,7 +94,7 @@ exports.handler = async (event) => {
 
         if (!insertRes.ok) {
             const insertErr = await insertRes.text();
-            // Auth user was created but app_user failed — clean up auth user
+            // Clean up the auth user since app_user record failed
             await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${authUserId}`, {
                 method: 'DELETE',
                 headers: supabaseHeaders
@@ -87,7 +112,10 @@ exports.handler = async (event) => {
             body: JSON.stringify({
                 success: true,
                 auth_user_id: authUserId,
-                app_user: appUser[0]
+                app_user: appUser[0],
+                invite_sent: true,
+                email,
+                message: `Invite email sent to ${email}. They'll set their password when they click the link.`
             })
         };
 
