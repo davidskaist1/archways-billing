@@ -87,7 +87,7 @@ async function checkProviderStatus() {
             div.innerHTML = `
                 <div style="background:var(--color-warning-light);padding:10px;border-radius:6px;">
                     <strong>📧 Outlook sending not yet configured.</strong>
-                    <p style="margin:6px 0 0;font-size:0.78rem;">Preview works now. To send via your Outlook integration, add these to Netlify env vars: <code>AZURE_TENANT_ID</code>, <code>AZURE_CLIENT_ID</code>, <code>AZURE_CLIENT_SECRET</code>, <code>OUTLOOK_FROM_EMAIL</code>.</p>
+                    <p style="margin:6px 0 0;font-size:0.78rem;">Preview works now. To send via your Outlook integration, copy these env vars from your CRM site to this site's Netlify env vars: <code>MS_TENANT_ID</code>, <code>MS_CLIENT_ID</code>, <code>MS_CLIENT_SECRET</code>, <code>MS_SENDER_EMAIL</code>.</p>
                 </div>
             `;
             document.getElementById('send-test-btn').disabled = true;

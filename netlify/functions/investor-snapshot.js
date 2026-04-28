@@ -24,16 +24,15 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 // Microsoft Graph (Outlook / Microsoft 365) credentials.
 // Send mail using the existing Outlook integration the user already has.
 //
-// Required Netlify env vars:
-//   AZURE_TENANT_ID          — your Microsoft 365 tenant ID
-//   AZURE_CLIENT_ID          — Azure AD app registration client ID
-//   AZURE_CLIENT_SECRET      — Azure AD app secret value
-//   OUTLOOK_FROM_EMAIL       — the mailbox these emails will be sent from
-//                              (e.g. reports@archwaysaba.com or david@archwaysaba.com)
-const AZURE_TENANT_ID = process.env.AZURE_TENANT_ID;
-const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
-const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET;
-const OUTLOOK_FROM_EMAIL = process.env.OUTLOOK_FROM_EMAIL;
+// Accepted Netlify env var names (use either set):
+//   AZURE_TENANT_ID    or  MS_TENANT_ID
+//   AZURE_CLIENT_ID    or  MS_CLIENT_ID
+//   AZURE_CLIENT_SECRET or MS_CLIENT_SECRET
+//   OUTLOOK_FROM_EMAIL or MS_SENDER_EMAIL
+const AZURE_TENANT_ID = process.env.AZURE_TENANT_ID || process.env.MS_TENANT_ID;
+const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID || process.env.MS_CLIENT_ID;
+const AZURE_CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET || process.env.MS_CLIENT_SECRET;
+const OUTLOOK_FROM_EMAIL = process.env.OUTLOOK_FROM_EMAIL || process.env.MS_SENDER_EMAIL;
 const EMAIL_CONFIGURED = !!(AZURE_TENANT_ID && AZURE_CLIENT_ID && AZURE_CLIENT_SECRET && OUTLOOK_FROM_EMAIL);
 
 const supaHeaders = {
@@ -120,7 +119,7 @@ exports.handler = async (event) => {
                     statusCode: 400,
                     body: JSON.stringify({
                         ok: false,
-                        error: 'Outlook sending not configured. Add AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, OUTLOOK_FROM_EMAIL to Netlify env vars.'
+                        error: 'Outlook sending not configured. Add MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SENDER_EMAIL (or AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / OUTLOOK_FROM_EMAIL) to Netlify env vars.'
                     })
                 };
             }
@@ -163,7 +162,7 @@ exports.handler = async (event) => {
                     statusCode: 400,
                     body: JSON.stringify({
                         ok: false,
-                        error: 'Outlook sending not configured. Add AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, OUTLOOK_FROM_EMAIL to Netlify env vars.'
+                        error: 'Outlook sending not configured. Add MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SENDER_EMAIL (or AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / OUTLOOK_FROM_EMAIL) to Netlify env vars.'
                     })
                 };
             }
