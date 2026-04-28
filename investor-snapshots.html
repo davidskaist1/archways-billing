@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" href="/favicon.png">
+    <title>Investor Snapshots — Archways ABA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .preview-frame {
+            width: 100%;
+            height: 700px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            background: #fff;
+        }
+        @media (max-width: 768px) {
+            .preview-frame { height: 500px; }
+        }
+        .send-status-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+        .badge-sent { background: var(--color-success-light); color: var(--color-success); }
+        .badge-preview { background: var(--color-bg); color: var(--color-text-secondary); }
+        .badge-failed { background: var(--color-danger-light); color: var(--color-danger); }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <main class="main-content" id="main-content">
+            <div class="page-header">
+                <div>
+                    <h1>Investor Snapshots</h1>
+                    <p class="text-sm text-muted">Generate, preview, and (when ready) email periodic financial snapshots to investors.</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-secondary" id="settings-btn">⚙️ Settings</button>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="status-banner" style="display:none;"></div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="preview">Preview & Send</button>
+                <button class="tab-btn" data-tab="history">Send History</button>
+            </div>
+
+            <!-- Preview & Send Tab -->
+            <div class="tab-content active" id="tab-preview">
+                <div class="grid-2 gap-lg" style="grid-template-columns: 320px 1fr; align-items: start;">
+                    <div>
+                        <div class="card">
+                            <h3 class="mb-2">Build Snapshot</h3>
+
+                            <div class="form-group">
+                                <label class="form-label">Period</label>
+                                <select class="form-select" id="period-select">
+                                    <option value="weekly">Weekly (last 7 days)</option>
+                                    <option value="monthly">Monthly (last calendar month)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Preview as Investor</label>
+                                <select class="form-select" id="investor-select">
+                                    <option value="">— Generic preview —</option>
+                                </select>
+                                <span class="text-xs text-muted">Switch perspectives to see how each investor will see their snapshot.</span>
+                            </div>
+
+                            <button class="btn btn-primary mt-1" id="preview-btn" style="width:100%;">Generate Preview</button>
+
+                            <hr style="border:none;border-top:1px solid var(--color-border);margin:18px 0;">
+
+                            <h4 class="mb-1" style="font-size:0.9rem;">Send Test</h4>
+                            <p class="text-xs text-muted mb-1">Send the current preview to your own email to see how it looks in an actual inbox.</p>
+                            <input class="form-input mb-1" type="email" id="test-email" placeholder="your-email@example.com">
+                            <button class="btn btn-secondary" id="send-test-btn" style="width:100%;">📧 Send Test to Me</button>
+
+                            <hr style="border:none;border-top:1px solid var(--color-border);margin:18px 0;">
+
+                            <h4 class="mb-1" style="font-size:0.9rem;">Send to Investors</h4>
+                            <p class="text-xs text-muted mb-1">Sends a personalized snapshot to each investor with portal access (their own contributed amount, equity %, etc.).</p>
+                            <button class="btn btn-success" id="send-all-btn" style="width:100%;">🚀 Send to All Investors</button>
+                            <div class="text-xs text-muted mt-1" id="send-status"></div>
+                        </div>
+
+                        <div class="card mt-2">
+                            <h4 class="mb-1" style="font-size:0.9rem;">Email Provider Status</h4>
+                            <div id="provider-status" class="text-xs"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="card">
+                            <div class="flex-between mb-2">
+                                <h3>Email Preview</h3>
+                                <span class="text-xs text-muted" id="preview-meta"></span>
+                            </div>
+                            <iframe class="preview-frame" id="preview-frame" sandbox="allow-same-origin"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-content" id="tab-history">
+                <div id="history-list"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/.netlify/functions/config"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/investor-snapshots.js"></script>
+</body>
+</html>

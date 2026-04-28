@@ -7,7 +7,8 @@ const NAV_ITEMS = [
             { label: 'Dashboard', href: 'investor-dashboard.html', icon: 'trending-up', roles: ['admin', 'investor'] },
             { label: 'Pro Forma', href: 'pro-forma.html', icon: 'calculator', roles: ['admin', 'investor'] },
             { label: 'Operating Expenses', href: 'operating-expenses.html', icon: 'credit-card', roles: ['admin'] },
-            { label: 'Investors', href: 'investors.html', icon: 'users', roles: ['admin'] }
+            { label: 'Investors', href: 'investors.html', icon: 'users', roles: ['admin'] },
+            { label: 'Investor Snapshots', href: 'investor-snapshots.html', icon: 'mail', roles: ['admin'] }
         ]
     },
     {
