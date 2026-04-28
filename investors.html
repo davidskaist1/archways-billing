@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="apple-touch-icon" href="/favicon.png">
-    <title>Investors — Archways ABA</title>
+    <title>Capital — Archways ABA</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
@@ -14,15 +14,49 @@
     <div class="app-layout">
         <main class="main-content" id="main-content">
             <div class="page-header">
-                <h1>Investors</h1>
-                <div class="page-actions">
-                    <button class="btn btn-primary" id="add-investor-btn">+ Add Investor</button>
+                <h1>Capital & Snapshot Recipients</h1>
+            </div>
+
+            <p class="text-sm text-muted mb-2">
+                Track money funded into the company by Azria, and manage who gets the periodic snapshot emails. Simple flat list — no per-investor profiles to maintain.
+            </p>
+
+            <div class="kpi-grid">
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-label">Total Capital Raised</div>
+                    <div class="kpi-value" id="kpi-total">$0</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Last 30 Days</div>
+                    <div class="kpi-value" id="kpi-recent">$0</div>
+                    <div class="kpi-sub" id="kpi-recent-sub"></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Snapshot Recipients</div>
+                    <div class="kpi-value" id="kpi-recipients">—</div>
+                    <div class="kpi-sub">Email addresses</div>
                 </div>
             </div>
 
-            <p class="text-sm text-muted mb-2">Add investors and track their capital contributions. When adding, you can create their portal login in the same step — no need to go to the Users page first.</p>
+            <div class="grid-2 gap-lg" style="grid-template-columns: 1fr 380px; align-items: start;">
+                <div class="card">
+                    <div class="flex-between mb-2">
+                        <h3>Capital Contributions</h3>
+                        <button class="btn btn-primary btn-sm" id="add-contrib-btn">+ Record Contribution</button>
+                    </div>
+                    <div id="contribs-list"></div>
+                </div>
 
-            <div id="investors-list"></div>
+                <div class="card">
+                    <h3 class="mb-2">📧 Snapshot Recipients</h3>
+                    <p class="text-sm text-muted mb-2">
+                        These email addresses receive the periodic snapshot emails (weekly/monthly). One per line.
+                    </p>
+                    <textarea class="form-textarea" id="recipients-input" rows="6" placeholder="steve@example.com&#10;noah@example.com" style="font-family:var(--font-mono);font-size:0.85rem;"></textarea>
+                    <button class="btn btn-primary mt-1" id="save-recipients-btn" style="width:100%;">Save Recipients</button>
+                    <p class="text-xs text-muted mt-1" id="recipients-status"></p>
+                </div>
+            </div>
         </main>
     </div>
 

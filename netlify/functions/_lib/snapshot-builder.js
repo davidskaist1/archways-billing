@@ -86,7 +86,7 @@ async function collectMetrics(periodType) {
     const prevEndStr = prevEnd.toISOString().split('T')[0];
 
     // ----- Capital raised (with period-level breakdown) -----
-    const { capitalRaised, distributions, investors, periodCapital } = await fetchInvestorData(periodStartStr, periodEndStr);
+    const { capitalRaised, periodCapital, periodContribs } = await fetchInvestorData(periodStartStr, periodEndStr);
 
     // ----- Period revenue + activity -----
     const period = await fetchPeriodMetrics(periodStartStr, periodEndStr);
@@ -112,10 +112,8 @@ async function collectMetrics(periodType) {
         ytd,
         capital: {
             raised: capitalRaised,
-            distributed: distributions,
-            net: capitalRaised - distributions,
-            investors: investors,
-            period_raised: periodCapital
+            period_raised: periodCapital,
+            period_contribs: periodContribs
         },
         ar,
         counts,
@@ -124,43 +122,23 @@ async function collectMetrics(periodType) {
 }
 
 async function fetchInvestorData(periodStart, periodEnd) {
-    const [contribs, dists, invList] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/investor_contributions?select=amount,investor_id,contribution_date,contribution_type,notes`, { headers: supaHeaders }).then(r => r.json()),
-        fetch(`${SUPABASE_URL}/rest/v1/investor_distributions?select=amount,investor_id,distribution_date`, { headers: supaHeaders }).then(r => r.json()),
-        fetch(`${SUPABASE_URL}/rest/v1/investors?select=id,name,equity_percent,is_active`, { headers: supaHeaders }).then(r => r.json())
-    ]);
+    const contribsRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/investor_contributions?select=amount,contribution_date,contribution_type,notes&order=contribution_date.desc`,
+        { headers: supaHeaders }
+    );
+    const contribs = await contribsRes.json();
 
     const capitalRaised = (contribs || []).reduce((s, c) => s + parseFloat(c.amount), 0);
-    const distributions = (dists || []).reduce((s, d) => s + parseFloat(d.amount), 0);
 
-    // Per-investor totals + period contributions
-    const investors = (invList || []).filter(i => i.is_active).map(inv => {
-        const myContribs = (contribs || []).filter(c => c.investor_id === inv.id);
-        const myDists = (dists || []).filter(d => d.investor_id === inv.id);
-        const myPeriodContribs = periodStart && periodEnd
-            ? myContribs.filter(c =>
-                c.contribution_date >= periodStart && c.contribution_date <= periodEnd
-            )
-            : [];
-        return {
-            id: inv.id,
-            name: inv.name,
-            equity_percent: inv.equity_percent,
-            contributed: myContribs.reduce((s, c) => s + parseFloat(c.amount), 0),
-            distributed: myDists.reduce((s, d) => s + parseFloat(d.amount), 0),
-            period_contribs: myPeriodContribs,
-            period_contrib_total: myPeriodContribs.reduce((s, c) => s + parseFloat(c.amount), 0)
-        };
-    });
+    // Contributions in this specific period
+    const periodContribs = periodStart && periodEnd
+        ? (contribs || []).filter(c =>
+            c.contribution_date >= periodStart && c.contribution_date <= periodEnd
+          )
+        : [];
+    const periodCapital = periodContribs.reduce((s, c) => s + parseFloat(c.amount), 0);
 
-    // Total funding raised in this period (across all investors)
-    const periodCapital = periodStart && periodEnd
-        ? (contribs || [])
-            .filter(c => c.contribution_date >= periodStart && c.contribution_date <= periodEnd)
-            .reduce((s, c) => s + parseFloat(c.amount), 0)
-        : 0;
-
-    return { capitalRaised, distributions, investors, periodCapital };
+    return { capitalRaised, periodCapital, periodContribs };
 }
 
 async function fetchPeriodMetrics(startDate, endDate) {
@@ -236,12 +214,8 @@ async function fetchActiveCounts() {
 // EMAIL HTML RENDERING
 // ============================================
 
-function renderEmailHTML(metrics, investor, settings = {}) {
+function renderEmailHTML(metrics, settings = {}) {
     const periodRange = fmtDateRange(metrics.periodStart, metrics.periodEnd);
-    const investorName = investor?.name || 'Investor';
-    const firstName = investorName.split(' ')[0];
-    const myContrib = investor?.contributed || 0;
-    const myEquity = investor?.equity_percent;
 
     const revTrend = trendLabel(metrics.period.collected, metrics.prev.collected);
     const billedTrend = trendLabel(metrics.period.billed, metrics.prev.billed);
@@ -279,10 +253,9 @@ ${metrics.periodLabel}: ${fmtMoney(metrics.period.collected)} collected · ${fmt
           </td>
         </tr>
 
-        <!-- Greeting + intro -->
+        <!-- Intro -->
         <tr>
           <td style="padding:28px 32px 8px;">
-            <p style="margin:0 0 14px;font-size:16px;line-height:1.5;">Hi ${firstName},</p>
             <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">${intro}</p>
           </td>
         </tr>
@@ -332,20 +305,18 @@ ${metrics.periodLabel}: ${fmtMoney(metrics.period.collected)} collected · ${fmt
           </td>
         </tr>
 
-        <!-- Section: Investor's Capital -->
+        <!-- Section: Capital Position -->
         <tr>
           <td style="padding:24px 32px 0;">
-            <h2 style="margin:0 0 12px;font-size:16px;font-weight:700;color:#111827;border-bottom:2px solid #C9A843;padding-bottom:6px;">Your Position</h2>
+            <h2 style="margin:0 0 12px;font-size:16px;font-weight:700;color:#111827;border-bottom:2px solid #C9A843;padding-bottom:6px;">Capital Position</h2>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;">
-              ${plRow('Your Total Investment', fmtMoneyDecimal(myContrib), '#1B3A6B', true)}
-              ${myEquity ? plRow('Your Equity Stake', myEquity + '%', '#1B3A6B') : ''}
-              ${plRow('Total Capital Raised', fmtMoney(metrics.capital.raised), '#374151')}
+              ${plRow('Total Capital Raised', fmtMoney(metrics.capital.raised), '#1B3A6B', true)}
               ${metrics.capital.period_raised > 0 ? plRow(`Capital Raised ${metrics.periodType === 'weekly' ? 'This Week' : 'This Month'}`, fmtMoney(metrics.capital.period_raised), '#059669', true) : ''}
             </table>
-            ${investor && investor.period_contribs && investor.period_contribs.length > 0 ? `
+            ${metrics.capital.period_contribs && metrics.capital.period_contribs.length > 0 ? `
               <div style="margin-top:12px;background:#fffbeb;border-left:4px solid #C9A843;padding:12px 14px;border-radius:6px;">
-                <div style="font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Your Recent Funding Activity</div>
-                ${investor.period_contribs.map(c => `
+                <div style="font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Recent Funding Activity</div>
+                ${metrics.capital.period_contribs.map(c => `
                   <div style="font-size:13px;color:#374151;padding:4px 0;">
                     <strong>${fmtMoneyDecimal(c.amount)}</strong>
                     <span style="color:#6b7280;"> · ${new Date(c.contribution_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${c.contribution_type}</span>
@@ -360,10 +331,6 @@ ${metrics.periodLabel}: ${fmtMoney(metrics.period.collected)} collected · ${fmt
         <!-- Footer message -->
         <tr>
           <td style="padding:28px 32px 8px;">
-            <p style="margin:0 0 14px;font-size:14px;line-height:1.6;color:#374151;">
-              For full details and the live pro forma, log in to the
-              <a href="https://finance.archwaysaba.com/investor-dashboard.html" style="color:#1B3A6B;font-weight:600;text-decoration:none;">investor portal</a>.
-            </p>
             <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">${signoff}</p>
           </td>
         </tr>

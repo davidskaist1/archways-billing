@@ -5,7 +5,7 @@ import { showToast, createModal, openModal, closeModal, formatDate } from './ui.
 
 let lastPreviewHtml = null;
 let lastPreviewMeta = null;
-let investors = [];
+let recipients = [];
 let settings = {};
 
 async function init() {
@@ -13,32 +13,27 @@ async function init() {
     if (!auth) return;
     renderNav();
 
-    // Load investors
-    const { data: invData } = await supabase
-        .from('investors')
-        .select('id, name, email')
-        .eq('is_active', true)
-        .order('name');
-    investors = invData || [];
-
-    const sel = document.getElementById('investor-select');
-    for (const i of investors) {
-        sel.innerHTML += `<option value="${i.id}">${i.name}${i.email ? ' (' + i.email + ')' : ''}</option>`;
-    }
-
-    // Load settings
+    // Load settings (includes recipient_emails)
     const { data: settingsRow } = await supabase
         .from('investor_snapshot_settings')
         .select('*')
         .eq('id', 1)
         .maybeSingle();
     settings = settingsRow || {};
+    recipients = parseRecipients(settings.recipient_emails);
 
     setupTabs();
     setupHandlers();
     await checkProviderStatus();
     await generatePreview();
     setupChecklistHandlers();
+}
+
+function parseRecipients(raw) {
+    if (!raw) return [];
+    return [...new Set(
+        String(raw).split(/[\n,;]+/).map(e => e.trim()).filter(Boolean)
+    )];
 }
 
 function setupChecklistHandlers() {
@@ -111,7 +106,6 @@ function setupTabs() {
 
 function setupHandlers() {
     document.getElementById('period-select').addEventListener('change', generatePreview);
-    document.getElementById('investor-select').addEventListener('change', generatePreview);
     document.getElementById('preview-btn').addEventListener('click', generatePreview);
     document.getElementById('send-test-btn').addEventListener('click', sendTest);
     document.getElementById('send-all-btn').addEventListener('click', sendToAll);
@@ -157,7 +151,6 @@ async function checkProviderStatus() {
 
 async function generatePreview() {
     const period = document.getElementById('period-select').value;
-    const investorId = document.getElementById('investor-select').value || null;
 
     const previewBtn = document.getElementById('preview-btn');
     previewBtn.disabled = true;
@@ -167,26 +160,23 @@ async function generatePreview() {
         const res = await fetch('/.netlify/functions/investor-snapshot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'preview',
-                period,
-                investor_id: investorId
-            })
+            body: JSON.stringify({ action: 'preview', period })
         });
         const result = await res.json();
         if (!result.ok) throw new Error(result.error || 'Preview failed');
 
         lastPreviewHtml = result.html;
-        lastPreviewMeta = { period, investor: result.investor, subject: result.subject };
+        lastPreviewMeta = { period, subject: result.subject };
 
         // Render iframe
         const iframe = document.getElementById('preview-frame');
         const blob = new Blob([result.html], { type: 'text/html' });
         iframe.src = URL.createObjectURL(blob);
 
-        // Meta
+        // Meta — show subject and recipient count
+        const recipientCount = (result.recipients || []).length;
         document.getElementById('preview-meta').textContent =
-            `${result.subject} → ${result.investor.name}`;
+            `${result.subject} → ${recipientCount} recipient${recipientCount !== 1 ? 's' : ''}`;
     } catch (err) {
         showToast('Preview failed: ' + err.message, 'error');
     }
@@ -227,15 +217,14 @@ async function sendTest() {
 async function sendToAll() {
     const period = document.getElementById('period-select').value;
 
-    const targets = investors.filter(i => i.email);
-    if (targets.length === 0) {
-        showToast('No investors with email addresses on file.', 'error');
+    if (recipients.length === 0) {
+        showToast('No recipient emails set. Add them on the Capital page.', 'error');
         return;
     }
 
     const ok = confirm(
-        `This will send a ${period} snapshot to ${targets.length} investor${targets.length > 1 ? 's' : ''}:\n\n` +
-        targets.map(i => `• ${i.name} (${i.email})`).join('\n') +
+        `This will send a ${period} snapshot to ${recipients.length} recipient${recipients.length > 1 ? 's' : ''}:\n\n` +
+        recipients.map(e => `• ${e}`).join('\n') +
         '\n\nProceed?'
     );
     if (!ok) return;
@@ -254,16 +243,16 @@ async function sendToAll() {
         if (!result.ok) throw new Error(result.error || 'Send failed');
 
         const status = document.getElementById('send-status');
-        status.innerHTML = `<strong>Sent ${result.sent}</strong> · Failed ${result.failed} · Skipped ${result.skipped}`;
+        status.innerHTML = `<strong>Sent ${result.sent}</strong> · Failed ${result.failed}`;
 
-        showToast(`Sent ${result.sent} of ${targets.length} snapshots.`, 'success', 6000);
+        showToast(`Sent ${result.sent} of ${recipients.length} snapshots.`, 'success', 6000);
         loadHistory();
     } catch (err) {
         showToast('Failed: ' + err.message, 'error', 8000);
     }
 
     btn.disabled = false;
-    btn.textContent = '🚀 Send to All Investors';
+    btn.textContent = '🚀 Send to All Recipients';
 }
 
 async function loadHistory() {
@@ -314,7 +303,7 @@ function openSettingsModal() {
                 <div class="form-group">
                     <label class="form-label">Sender Email</label>
                     <input class="form-input" type="email" name="sender_email" value="${settings.sender_email || ''}" placeholder="reports@finance.archwaysaba.com">
-                    <span class="text-xs text-muted">Must be verified in Resend</span>
+                    <span class="text-xs text-muted">Must be a mailbox the Outlook app can send from</span>
                 </div>
             </div>
             <div class="form-group">
@@ -329,7 +318,7 @@ function openSettingsModal() {
 
             <hr style="border:none;border-top:1px solid var(--color-border);margin:16px 0;">
 
-            <p class="text-sm mb-2"><strong>Scheduled Sends</strong> — when enabled, snapshots auto-send on a schedule. Build out the portal first, then come back and turn these on.</p>
+            <p class="text-sm mb-2"><strong>Scheduled Sends</strong> — when enabled, snapshots auto-send on a schedule to all recipients.</p>
 
             <div class="form-group">
                 <div class="form-check">

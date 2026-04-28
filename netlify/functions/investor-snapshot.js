@@ -1,17 +1,16 @@
 // Investor snapshot — preview, send, or list snapshots
 //
 // Modes (POST body):
-//   { action: 'preview', period: 'weekly'|'monthly', investor_id?: uuid }
-//     -> Returns rendered HTML and metrics WITHOUT sending. Always saved
-//        to investor_snapshots with status='preview'.
+//   { action: 'preview', period: 'weekly'|'monthly' }
+//     -> Returns rendered HTML and metrics WITHOUT sending.
 //
-//   { action: 'send', period: 'weekly'|'monthly', investor_ids?: [uuid] }
-//     -> Sends emails to one investor (or all active investors with
-//        portal access if investor_ids omitted).
-//        Requires RESEND_API_KEY env var. Returns send report.
+//   { action: 'send', period: 'weekly'|'monthly' }
+//     -> Sends emails to all recipient_emails configured in
+//        investor_snapshot_settings. Requires Microsoft Graph
+//        env vars. Returns send report.
 //
 //   { action: 'send_test', period: 'weekly'|'monthly', test_email: '...' }
-//     -> Sends to admin's specified test email instead of real investors.
+//     -> Sends to the specified test email instead of all recipients.
 //
 //   { action: 'history' }
 //     -> Returns last 50 snapshot records.
@@ -76,7 +75,7 @@ exports.handler = async (event) => {
 
         const period = body.period === 'monthly' ? 'monthly' : 'weekly';
 
-        // Settings
+        // Settings (includes recipient_emails)
         const settingsRes = await fetch(`${SUPABASE_URL}/rest/v1/investor_snapshot_settings?id=eq.1&select=*`, { headers: supaHeaders });
         const settings = (await settingsRes.json())[0] || {};
 
@@ -84,20 +83,7 @@ exports.handler = async (event) => {
         const metrics = await collectMetrics(period);
 
         if (action === 'preview') {
-            // Render for a specific investor or a generic preview
-            let investor = null;
-            if (body.investor_id) {
-                investor = metrics.capital.investors.find(i => i.id === body.investor_id);
-            }
-            // If no investor selected, render a generic preview
-            const previewInvestor = investor || metrics.capital.investors[0] || {
-                id: null,
-                name: 'Sample Investor',
-                contributed: 0,
-                equity_percent: null
-            };
-
-            const html = renderEmailHTML(metrics, previewInvestor, settings);
+            const html = renderEmailHTML(metrics, settings);
             const subject = `${metrics.periodLabel} — ${formatDate(metrics.periodStart)} to ${formatDate(metrics.periodEnd)}`;
 
             return {
@@ -106,9 +92,9 @@ exports.handler = async (event) => {
                     ok: true,
                     mode: 'preview',
                     metrics,
-                    investor: previewInvestor,
                     html,
-                    subject
+                    subject,
+                    recipients: parseRecipients(settings.recipient_emails)
                 })
             };
         }
@@ -128,10 +114,7 @@ exports.handler = async (event) => {
                 return { statusCode: 400, body: JSON.stringify({ ok: false, error: 'test_email required' }) };
             }
 
-            const previewInvestor = metrics.capital.investors[0] || {
-                name: 'Sample Investor', contributed: 0
-            };
-            const html = renderEmailHTML(metrics, previewInvestor, settings);
+            const html = renderEmailHTML(metrics, settings);
             const subject = `[TEST] ${metrics.periodLabel} — ${formatDate(metrics.periodStart)} to ${formatDate(metrics.periodEnd)}`;
 
             const result = await sendEmail(testEmail, subject, html, settings);
@@ -167,42 +150,31 @@ exports.handler = async (event) => {
                 };
             }
 
-            // Get target investors
-            const investorIds = body.investor_ids || null;
-            let targets;
-            if (investorIds && investorIds.length > 0) {
-                const invRes = await fetch(
-                    `${SUPABASE_URL}/rest/v1/investors?id=in.(${investorIds.join(',')})&select=id,name,email,equity_percent,is_active`,
-                    { headers: supaHeaders }
-                );
-                targets = await invRes.json();
-            } else {
-                const invRes = await fetch(
-                    `${SUPABASE_URL}/rest/v1/investors?is_active=eq.true&email=not.is.null&select=id,name,email,equity_percent`,
-                    { headers: supaHeaders }
-                );
-                targets = await invRes.json();
+            // Read recipient list from settings (one or more emails, separated by
+            // newline / comma / semicolon).
+            const recipients = parseRecipients(settings.recipient_emails);
+            if (recipients.length === 0) {
+                return {
+                    statusCode: 400,
+                    body: JSON.stringify({
+                        ok: false,
+                        error: 'No snapshot recipients configured. Add email addresses on the Capital page.'
+                    })
+                };
             }
 
-            const results = [];
-            for (const inv of targets) {
-                if (!inv.email) {
-                    results.push({ investor: inv.name, status: 'skipped', reason: 'no email' });
-                    continue;
-                }
-                const investorMetrics = metrics.capital.investors.find(x => x.id === inv.id) || {
-                    id: inv.id, name: inv.name, contributed: 0, equity_percent: inv.equity_percent
-                };
-                const html = renderEmailHTML(metrics, investorMetrics, settings);
-                const subject = `${metrics.periodLabel} — ${formatDate(metrics.periodStart)} to ${formatDate(metrics.periodEnd)}`;
+            const html = renderEmailHTML(metrics, settings);
+            const subject = `${metrics.periodLabel} — ${formatDate(metrics.periodStart)} to ${formatDate(metrics.periodEnd)}`;
 
-                const sendResult = await sendEmail(inv.email, subject, html, settings);
+            const results = [];
+            for (const email of recipients) {
+                const sendResult = await sendEmail(email, subject, html, settings);
                 await logSnapshot({
                     period_type: period,
                     period_start: metrics.periodStart,
                     period_end: metrics.periodEnd,
-                    investor_id: inv.id,
-                    investor_email: inv.email,
+                    investor_id: null,
+                    investor_email: email,
                     subject,
                     body_html: html,
                     metrics,
@@ -213,8 +185,7 @@ exports.handler = async (event) => {
                 });
 
                 results.push({
-                    investor: inv.name,
-                    email: inv.email,
+                    email,
                     status: sendResult.ok ? 'sent' : 'failed',
                     error: sendResult.error
                 });
@@ -226,7 +197,6 @@ exports.handler = async (event) => {
                     ok: true,
                     sent: results.filter(r => r.status === 'sent').length,
                     failed: results.filter(r => r.status === 'failed').length,
-                    skipped: results.filter(r => r.status === 'skipped').length,
                     results
                 })
             };
@@ -238,6 +208,16 @@ exports.handler = async (event) => {
         return { statusCode: 500, body: JSON.stringify({ ok: false, error: err.message }) };
     }
 };
+
+function parseRecipients(raw) {
+    if (!raw) return [];
+    return [...new Set(
+        String(raw)
+            .split(/[\n,;]+/)
+            .map(e => e.trim())
+            .filter(Boolean)
+    )];
+}
 
 // Cache the Microsoft Graph access token between invocations within a warm
 // Lambda. Tokens last ~1hr; we refresh ~5 min before expiry.

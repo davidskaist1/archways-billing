@@ -155,6 +155,16 @@ async function handleImportFile(file) {
             throw new Error('No expenses extracted from this file. Check the format and try again.');
         }
 
+        // Check for duplicates against existing DB records
+        step2.innerHTML = `
+            <div class="text-center" style="padding:40px 20px;">
+                <div class="spinner" style="margin:0 auto 12px;"></div>
+                <h3>Checking for duplicates…</h3>
+                <p class="text-sm text-muted">Comparing against existing expenses to avoid double-counting overlapping uploads.</p>
+            </div>
+        `;
+        await flagDuplicates(result.expenses);
+
         showImportPreview(result, file.name, json);
 
     } catch (err) {
@@ -172,12 +182,74 @@ async function handleImportFile(file) {
     }
 }
 
+// Find existing expenses that look like duplicates of the parsed rows.
+// Match criteria: same date + same amount (within $0.01) + similar vendor or
+// description (case-insensitive substring match either direction).
+// Each parsed expense gets `_is_duplicate` and `_duplicate_match` annotations.
+async function flagDuplicates(expenses) {
+    if (!expenses || expenses.length === 0) return;
+
+    // Determine date range to query
+    const dates = expenses.map(e => e.expense_date).filter(Boolean).sort();
+    if (dates.length === 0) return;
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+
+    const { data: existing, error } = await supabase
+        .from('operating_expenses')
+        .select('id, expense_date, amount, vendor, description, category')
+        .gte('expense_date', minDate)
+        .lte('expense_date', maxDate);
+
+    if (error || !existing) return;
+
+    const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const looksSimilar = (a, b) => {
+        const na = norm(a);
+        const nb = norm(b);
+        if (!na || !nb) return false;
+        if (na === nb) return true;
+        // Substring either direction (helps when one side is a longer description)
+        if (na.length >= 4 && nb.includes(na)) return true;
+        if (nb.length >= 4 && na.includes(nb)) return true;
+        return false;
+    };
+
+    for (const e of expenses) {
+        const amt = parseFloat(e.amount) || 0;
+        const match = existing.find(x =>
+            x.expense_date === e.expense_date &&
+            Math.abs(parseFloat(x.amount) - amt) < 0.01 &&
+            (looksSimilar(x.vendor, e.vendor) || looksSimilar(x.description, e.description))
+        );
+        if (match) {
+            e._is_duplicate = true;
+            e._duplicate_match = match;
+        }
+    }
+}
+
 function showImportPreview(result, filename, rawRows) {
     const step2 = document.getElementById('import-step-2');
     const expenses = result.expenses;
+    const dupCount = expenses.filter(e => e._is_duplicate).length;
 
-    // Track which rows are selected (default: all that are not "low" confidence)
-    const selected = new Set(expenses.map((_, i) => i));
+    // Default selection: everything except detected duplicates
+    const selected = new Set(
+        expenses
+            .map((e, i) => e._is_duplicate ? null : i)
+            .filter(i => i !== null)
+    );
+
+    const dupBanner = dupCount > 0 ? `
+        <div class="mb-2" style="background:var(--color-warning-light);border-left:4px solid var(--color-warning);padding:10px 14px;border-radius:6px;">
+            <strong>⚠️ ${dupCount} likely duplicate${dupCount === 1 ? '' : 's'} detected</strong>
+            <div class="text-xs text-muted mt-1">
+                These rows look like expenses already in the system (same date, same amount, similar vendor/description). They've been auto-unchecked. If you actually want to import them anyway, re-check the box.
+            </div>
+        </div>
+    ` : '';
 
     let html = `
         <div class="flex-between mb-2">
@@ -187,13 +259,15 @@ function showImportPreview(result, filename, rawRows) {
             </div>
         </div>
 
+        ${dupBanner}
+
         <p class="text-sm text-muted mb-2">Review and edit. Uncheck any rows you don't want to import. Click any field to adjust.</p>
 
         <div class="table-container" style="max-height:50vh;overflow-y:auto;">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width:30px;"><input type="checkbox" id="exp-select-all" checked></th>
+                        <th style="width:30px;"><input type="checkbox" id="exp-select-all" ${selected.size === expenses.length ? 'checked' : ''}></th>
                         <th>Conf</th>
                         <th>Date</th>
                         <th>Category</th>
@@ -210,7 +284,7 @@ function showImportPreview(result, filename, rawRows) {
         <div class="flex-between mt-2">
             <button class="btn btn-secondary" id="exp-back">← Try another file</button>
             <button class="btn btn-success" id="exp-confirm-import">
-                Import <span id="exp-import-count">${expenses.length}</span> Expenses
+                Import <span id="exp-import-count">${selected.size}</span> Expenses
             </button>
         </div>
     `;
@@ -223,11 +297,17 @@ function showImportPreview(result, filename, rawRows) {
         expenses.forEach((e, i) => {
             const tr = document.createElement('tr');
             tr.style.opacity = selected.has(i) ? '1' : '0.4';
+            if (e._is_duplicate) {
+                tr.style.background = 'var(--color-warning-light)';
+            }
             const confColor = e.confidence === 'high' ? 'badge-success' : e.confidence === 'medium' ? 'badge-warning' : 'badge-danger';
+            const dupBadge = e._is_duplicate
+                ? `<div class="text-xs" style="color:var(--color-warning);font-weight:600;margin-top:2px;" title="Matches existing expense ${formatDate(e._duplicate_match.expense_date)} · ${fmtMoney(e._duplicate_match.amount)} · ${e._duplicate_match.vendor || e._duplicate_match.description}">⚠️ duplicate</div>`
+                : '';
 
             tr.innerHTML = `
                 <td><input type="checkbox" class="exp-row-check" data-idx="${i}" ${selected.has(i) ? 'checked' : ''}></td>
-                <td><span class="badge ${confColor} text-xs">${e.confidence || '?'}</span></td>
+                <td><span class="badge ${confColor} text-xs">${e.confidence || '?'}</span>${dupBadge}</td>
                 <td><input class="form-input" type="date" value="${e.expense_date || ''}" data-idx="${i}" data-field="expense_date" style="width:140px;font-size:0.8rem;padding:4px 6px;"></td>
                 <td>
                     <select class="form-select" data-idx="${i}" data-field="category" style="font-size:0.8rem;padding:4px 6px;">
