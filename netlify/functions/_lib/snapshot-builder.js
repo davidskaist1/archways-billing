@@ -85,8 +85,8 @@ async function collectMetrics(periodType) {
     const prevStartStr = prevStart.toISOString().split('T')[0];
     const prevEndStr = prevEnd.toISOString().split('T')[0];
 
-    // ----- Capital raised -----
-    const { capitalRaised, distributions, investors } = await fetchInvestorData();
+    // ----- Capital raised (with period-level breakdown) -----
+    const { capitalRaised, distributions, investors, periodCapital } = await fetchInvestorData(periodStartStr, periodEndStr);
 
     // ----- Period revenue + activity -----
     const period = await fetchPeriodMetrics(periodStartStr, periodEndStr);
@@ -114,7 +114,8 @@ async function collectMetrics(periodType) {
             raised: capitalRaised,
             distributed: distributions,
             net: capitalRaised - distributions,
-            investors: investors
+            investors: investors,
+            period_raised: periodCapital
         },
         ar,
         counts,
@@ -122,9 +123,9 @@ async function collectMetrics(periodType) {
     };
 }
 
-async function fetchInvestorData() {
+async function fetchInvestorData(periodStart, periodEnd) {
     const [contribs, dists, invList] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/investor_contributions?select=amount,investor_id,contribution_date`, { headers: supaHeaders }).then(r => r.json()),
+        fetch(`${SUPABASE_URL}/rest/v1/investor_contributions?select=amount,investor_id,contribution_date,contribution_type,notes`, { headers: supaHeaders }).then(r => r.json()),
         fetch(`${SUPABASE_URL}/rest/v1/investor_distributions?select=amount,investor_id,distribution_date`, { headers: supaHeaders }).then(r => r.json()),
         fetch(`${SUPABASE_URL}/rest/v1/investors?select=id,name,equity_percent,is_active`, { headers: supaHeaders }).then(r => r.json())
     ]);
@@ -132,20 +133,34 @@ async function fetchInvestorData() {
     const capitalRaised = (contribs || []).reduce((s, c) => s + parseFloat(c.amount), 0);
     const distributions = (dists || []).reduce((s, d) => s + parseFloat(d.amount), 0);
 
-    // Per-investor totals
+    // Per-investor totals + period contributions
     const investors = (invList || []).filter(i => i.is_active).map(inv => {
         const myContribs = (contribs || []).filter(c => c.investor_id === inv.id);
         const myDists = (dists || []).filter(d => d.investor_id === inv.id);
+        const myPeriodContribs = periodStart && periodEnd
+            ? myContribs.filter(c =>
+                c.contribution_date >= periodStart && c.contribution_date <= periodEnd
+            )
+            : [];
         return {
             id: inv.id,
             name: inv.name,
             equity_percent: inv.equity_percent,
             contributed: myContribs.reduce((s, c) => s + parseFloat(c.amount), 0),
-            distributed: myDists.reduce((s, d) => s + parseFloat(d.amount), 0)
+            distributed: myDists.reduce((s, d) => s + parseFloat(d.amount), 0),
+            period_contribs: myPeriodContribs,
+            period_contrib_total: myPeriodContribs.reduce((s, c) => s + parseFloat(c.amount), 0)
         };
     });
 
-    return { capitalRaised, distributions, investors };
+    // Total funding raised in this period (across all investors)
+    const periodCapital = periodStart && periodEnd
+        ? (contribs || [])
+            .filter(c => c.contribution_date >= periodStart && c.contribution_date <= periodEnd)
+            .reduce((s, c) => s + parseFloat(c.amount), 0)
+        : 0;
+
+    return { capitalRaised, distributions, investors, periodCapital };
 }
 
 async function fetchPeriodMetrics(startDate, endDate) {
@@ -325,7 +340,20 @@ ${metrics.periodLabel}: ${fmtMoney(metrics.period.collected)} collected · ${fmt
               ${plRow('Your Total Investment', fmtMoneyDecimal(myContrib), '#1B3A6B', true)}
               ${myEquity ? plRow('Your Equity Stake', myEquity + '%', '#1B3A6B') : ''}
               ${plRow('Total Capital Raised', fmtMoney(metrics.capital.raised), '#374151')}
+              ${metrics.capital.period_raised > 0 ? plRow(`Capital Raised ${metrics.periodType === 'weekly' ? 'This Week' : 'This Month'}`, fmtMoney(metrics.capital.period_raised), '#059669', true) : ''}
             </table>
+            ${investor && investor.period_contribs && investor.period_contribs.length > 0 ? `
+              <div style="margin-top:12px;background:#fffbeb;border-left:4px solid #C9A843;padding:12px 14px;border-radius:6px;">
+                <div style="font-size:12px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Your Recent Funding Activity</div>
+                ${investor.period_contribs.map(c => `
+                  <div style="font-size:13px;color:#374151;padding:4px 0;">
+                    <strong>${fmtMoneyDecimal(c.amount)}</strong>
+                    <span style="color:#6b7280;"> · ${new Date(c.contribution_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${c.contribution_type}</span>
+                    ${c.notes ? `<div style="font-size:12px;color:#6b7280;margin-top:2px;">${c.notes}</div>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
           </td>
         </tr>
 

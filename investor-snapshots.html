@@ -113,6 +113,20 @@
             <div class="tab-content" id="tab-history">
                 <div id="history-list"></div>
             </div>
+
+            <!-- Weekly Admin Checklist -->
+            <div class="card mt-3">
+                <h3 class="mb-1">Weekly Admin Checklist Email</h3>
+                <p class="text-sm text-muted mb-2">
+                    Auto-sends every <strong>Friday at 9 AM Central</strong> to active admins (or whoever is set in the <code>ADMIN_CHECKLIST_TO</code> env var). Lists data freshness items, stale claims, pending denials, follow-ups due, payroll to approve, expenses missing, etc.
+                </p>
+                <div class="flex gap-1" style="flex-wrap:wrap;">
+                    <button class="btn btn-secondary" id="checklist-preview-btn">👁️ Preview</button>
+                    <input class="form-input" type="email" id="checklist-test-email" placeholder="your-email@example.com" style="flex:1;min-width:200px;">
+                    <button class="btn btn-primary" id="checklist-test-send-btn">📧 Send Test to This Email</button>
+                </div>
+                <div id="checklist-result" class="mt-2"></div>
+            </div>
         </main>
     </div>
 

@@ -38,6 +38,63 @@ async function init() {
     setupHandlers();
     await checkProviderStatus();
     await generatePreview();
+    setupChecklistHandlers();
+}
+
+function setupChecklistHandlers() {
+    document.getElementById('checklist-preview-btn').addEventListener('click', previewChecklist);
+    document.getElementById('checklist-test-send-btn').addEventListener('click', sendChecklistTest);
+}
+
+async function previewChecklist() {
+    const result = document.getElementById('checklist-result');
+    result.innerHTML = '<div class="text-muted">Loading…</div>';
+    try {
+        const res = await fetch('/.netlify/functions/admin-weekly-checklist-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'preview' })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        // Open the preview in a new window
+        const w = window.open('', '_blank');
+        w.document.write(data.html);
+        w.document.close();
+        result.innerHTML = `<div class="text-success">Preview opened in new tab. ${data.items} checklist items.</div>`;
+    } catch (err) {
+        result.innerHTML = '<div class="text-danger">Failed: ' + err.message + '</div>';
+    }
+}
+
+async function sendChecklistTest() {
+    const email = document.getElementById('checklist-test-email').value.trim();
+    if (!email) {
+        showToast('Enter your email first.', 'error');
+        return;
+    }
+    const btn = document.getElementById('checklist-test-send-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    const result = document.getElementById('checklist-result');
+
+    try {
+        const res = await fetch('/.netlify/functions/admin-weekly-checklist-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ test_email: email })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        result.innerHTML = `<div class="text-success">Sent ${data.sent} of ${data.sent + data.failed}. ${data.items} checklist items.</div>`;
+        showToast('Checklist sent to ' + email, 'success');
+    } catch (err) {
+        result.innerHTML = '<div class="text-danger">Failed: ' + err.message + '</div>';
+        showToast('Failed: ' + err.message, 'error');
+    }
+    btn.disabled = false;
+    btn.textContent = '📧 Send Test to This Email';
 }
 
 function setupTabs() {
